@@ -1,0 +1,74 @@
+/* Dumpy styles. Mobile first: design at 360 px, then widen. */
+:root {
+  --bg: #f6f8f5;
+  --surface: #ffffff;
+  --text: #17201b;
+  --muted: #4d5a52;
+  --brand: #1f7a4d;
+  --space: 16px;
+  --radius: 14px;
+  --tap: 44px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1a14;
+    --surface: #17241c;
+    --text: #e8efe9;
+    --muted: #a9b8ae;
+    --brand: #4cc28a;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+img { max-width: 100%; height: auto; }
+
+a, button { min-height: var(--tap); }
+
+:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+
+.hero {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: calc(var(--space) * 2) var(--space);
+  padding-top: max(calc(var(--space) * 2), env(safe-area-inset-top));
+  padding-bottom: max(calc(var(--space) * 2), env(safe-area-inset-bottom));
+}
+
+.hero__logo { border-radius: 20px; margin-bottom: var(--space); }
+
+.hero__title {
+  margin: 0;
+  font-size: clamp(2.5rem, 12vw, 4rem);
+  letter-spacing: -0.02em;
+  color: var(--brand);
+}
+
+.hero__tagline {
+  margin: 8px 0 0;
+  max-width: 22ch;
+  font-size: 1.25rem;
+}
+
+.hero__note { margin: var(--space) 0 0; color: var(--muted); }
