@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="An item on Dumpy.">
+  <title>Item · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="item" data-root="../" class="has-action">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="icon-btn" href="../index.html" aria-label="Back to Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+      <p class="app-header__title">Item</p>
+    </div>
+  </header>
+  <main id="main" class="page">
+    <article id="item"></article>
+    <p class="notice notice--warn" id="sent-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Request sent. You will hear back when the owner picks someone. Track it in <a href="my-items.html#requests">My items</a>.</span></p>
+  </main>
+  <div class="action-bar" id="action-bar">
+    <div class="action-bar__inner">
+      <p><span class="small muted">Price</span><br><strong id="action-price"></strong></p>
+      <button type="button" class="btn btn--primary btn--lg" id="want-btn">I want this</button>
+    </div>
+  </div>
+  <dialog class="sheet" id="request-sheet" aria-labelledby="sheet-title">
+    <div class="sheet__grip" aria-hidden="true"></div>
+    <form id="request-form" class="stack">
+      <h2 id="sheet-title">Ask for this item</h2>
+      <div class="field">
+        <label class="label" for="request-msg">Message to the owner <span class="label__opt">(optional)</span></label>
+        <textarea class="textarea" id="request-msg" maxlength="200" placeholder="For example: I can pick it up after 6 pm."></textarea>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn--outline" id="sheet-cancel">Cancel</button>
+        <button type="submit" class="btn btn--primary">Send request</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="../js/mock.js"></script>
+  <script src="../js/render.js"></script>
+</body>
+</html>
