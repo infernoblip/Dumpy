@@ -4,22 +4,13 @@ Stage 4 lets neighbours sign in with their email, join your society with an
 invite code, and wait for an admin (you) to approve them. Four things need
 your Supabase account. Do them in order; together they take about 20 minutes.
 
-## 1. Add the new database function
+## 1. Add the new database function (done)
 
 Stage 4 adds one small function, `my_memberships()`, that every page uses to
-decide what to show. The site shows "Dumpy could not reach its server" until it
-exists. It changes no tables.
-
-Claude can add it through the Supabase connector once you say so in the project
-thread. To do it yourself instead:
-
-1. Open `supabase/migrations/20261022170000_my_memberships.sql` on GitHub, tap
-   **Raw**, and copy all of it.
-2. Supabase dashboard → **SQL Editor** → **New query**, paste, tap **Run**.
-3. It should say **Success. No rows returned**.
-
-Then tell Claude, so the file name can be matched to the version Supabase
-recorded.
+decide what to show. It changes no tables. Claude added it to the live project
+through the Supabase connector on 22 Oct 2026, as migration
+`20261022162744_my_memberships.sql`. Nothing to do here. If the project is
+ever rebuilt by hand, paste that file into **SQL Editor → New query** and run it.
 
 ## 2. Let sign-in emails reach everyone
 
