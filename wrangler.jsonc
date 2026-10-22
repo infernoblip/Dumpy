@@ -1,0 +1,9 @@
+// Cloudflare Workers config: serves this repo as a static site, no build step.
+// Needed so pull request preview builds ("wrangler versions upload") know what to upload.
+{
+  "name": "dumpy",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./"
+  }
+}
