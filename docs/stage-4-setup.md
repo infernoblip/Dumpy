@@ -23,9 +23,13 @@ move to a proper service on your own domain later.
 1. Create the Gmail account (or use one you already have for this).
 2. In that Google account: **Manage your Google Account → Security**. Turn on
    **2-Step Verification** if it isn't on.
-3. Still under Security, search for **App passwords**. Create one named
-   `Dumpy`. Google shows a 16-letter password once: copy it.
+3. Open **https://myaccount.google.com/apppasswords** (Google hides this page
+   from the menus). Type `Dumpy` as the name and tap **Create**. Google shows a
+   16-letter password once: copy it.
    Never paste it into the project thread, a pull request, or the repo.
+   If the page says the setting isn't available: 2-Step Verification is still
+   off, you're signed in to a different Google account, or it's a work or
+   school account (use a personal Gmail instead).
 4. Supabase dashboard → **Authentication → Emails** → **SMTP Settings** tab →
    turn on **Enable Custom SMTP** and fill in:
    - **Sender email:** the Gmail address
