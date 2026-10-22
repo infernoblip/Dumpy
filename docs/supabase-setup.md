@@ -8,6 +8,14 @@ checks they work. It takes about 20 minutes. You can do all of it on a phone
 
 Nothing here costs money: the free plan is enough for one society.
 
+> **Status (22 Oct 2026): steps 1 to 5 are done.** Claude set them up through
+> the Supabase connector. The live project is **dumpy-mumbai** (Mumbai region,
+> ref `sfezmqsdzwrjdcqpyhln`). All four migrations are applied and all 78
+> isolation tests pass on it. No demo data was loaded. Only **step 6 (sign-in
+> settings)** is left for Arihaan, because the connector can't change auth
+> settings. The rest of this guide stays here in case the project ever has to
+> be rebuilt by hand.
+
 ## 1. Create the project
 
 1. Go to https://supabase.com and tap **Start your project**. Sign in with GitHub.
@@ -30,10 +38,10 @@ If that happens, open the dashboard and tap **Restore project**.
 The rules are four SQL files in `supabase/migrations/`. They must run in
 order, oldest first:
 
-1. `20261022140000_tables.sql`
-2. `20261022140100_helper_functions.sql`
-3. `20261022140200_row_level_security.sql`
-4. `20261022140300_listing_photos_bucket.sql`
+1. `20261022155037_tables.sql`
+2. `20261022155058_helper_functions.sql`
+3. `20261022155126_row_level_security.sql`
+4. `20261022155137_listing_photos_bucket.sql`
 
 Pick one option.
 

@@ -7,6 +7,14 @@ other's data**. Read this before writing code that talks to Supabase.
 
 Setup steps for the real project are in [docs/supabase-setup.md](../docs/supabase-setup.md).
 
+## Live project
+
+- Supabase project **dumpy-mumbai**, region Mumbai (`ap-south-1`), ref `sfezmqsdzwrjdcqpyhln`
+- Project URL: `https://sfezmqsdzwrjdcqpyhln.supabase.co`
+- Publishable key (public, safe in page code): `sb_publishable_5V49nQQ2FYSsdRDt8kR6iQ_688LWupD`
+- Claude manages it through the Supabase connector (MCP). Migrations applied that way are stamped with the time they ran, so **name each migration file with the version the project records** (`list_migrations`), or the CLI's `db push` will try to run it again.
+- The security advisor warns that signed-in users can call the `SECURITY DEFINER` helpers (`is_member`, `join_society`, ...). That's intended: each one only answers about the caller (`auth.uid()`).
+
 ## Files
 
 ```
