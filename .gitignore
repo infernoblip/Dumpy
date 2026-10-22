@@ -1,0 +1,15 @@
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Secrets: never commit these
+.env
+.env.*
+supabase/.temp/
+supabase/.branches/
+
+# Local tooling
+node_modules/
