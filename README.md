@@ -34,4 +34,6 @@ Open http://localhost:8000 in your browser. To try it on your phone, connect the
 ## Hosting
 Setup steps for Cloudflare Pages and the custom domain are in [docs/cloudflare-setup.md](docs/cloudflare-setup.md).
 
-**Domain:** the plan is to use `dumpyscrappingapp.in`. It has not been registered yet, so until it is, the site lives at its free Cloudflare address (`https://dumpy.pages.dev` or similar, shown in the Cloudflare dashboard).
+**Live now:** https://dumpy.infernicustrap.workers.dev/ (Cloudflare, deployed from `main`).
+
+**Domain:** the plan is to use `dumpyscrappingapp.in`. It has not been registered yet, so until it is, the site stays on the free Cloudflare address above.

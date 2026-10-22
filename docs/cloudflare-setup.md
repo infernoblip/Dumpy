@@ -2,6 +2,8 @@
 
 These are the steps for Arihaan. They take about 15 minutes, plus waiting time for the domain. You need the Dumpy GitHub repo to exist first.
 
+**Already done (2026-10-22):** the site is live as a Cloudflare Worker at https://dumpy.infernicustrap.workers.dev/. Part A below describes the Pages route; on a Worker the same settings live under the Worker's **Settings**, **Build**. The one step left there is turning on builds for non-production branches so pull requests get preview links.
+
 Cloudflare's menus move around now and then. If a button has a slightly different name, look for the closest match.
 
 ## Part A: Connect the repo to Cloudflare Pages
