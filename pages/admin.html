@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Dumpy society admin.">
+  <title>Society admin · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="admin-preview" data-root="../" class="has-nav">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="icon-btn" href="profile.html" aria-label="Back to Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+      <h1 class="app-header__title">Society admin</h1>
+    </div>
+  </header>
+  <main id="main" class="page">
+    <section class="section" aria-labelledby="pending-h">
+      <div class="section__head"><h2 id="pending-h">Waiting to join</h2><span class="status status--pending">2&nbsp;new</span></div>
+      <!-- Fake rows for the design. Stage 4 renders these from pending memberships. -->
+      <ul class="list" id="pending">
+        <li class="row-card">
+          <div class="person"><span class="avatar" aria-hidden="true">N</span>
+            <div class="row-card__main"><p class="person__name">Neel</p><p class="person__meta">Tower B, B-204 · asked 6 hours ago</p></div></div>
+          <div class="btn-row"><button type="button" class="btn btn--primary btn--sm">Approve</button><button type="button" class="btn btn--danger btn--sm">Reject</button></div>
+        </li>
+        <li class="row-card">
+          <div class="person"><span class="avatar" aria-hidden="true">F</span>
+            <div class="row-card__main"><p class="person__name">Fatima</p><p class="person__meta">Tower D, D-1102 · asked 1 day ago</p></div></div>
+          <div class="btn-row"><button type="button" class="btn btn--primary btn--sm">Approve</button><button type="button" class="btn btn--danger btn--sm">Reject</button></div>
+        </li>
+      </ul>
+    </section>
+    <section class="section" aria-labelledby="reports-h">
+      <div class="section__head"><h2 id="reports-h">Reported items</h2></div>
+      <div class="card-box empty"><p>No reports. Reports arrive here in a later stage.</p></div>
+    </section>
+    <section class="section" aria-labelledby="members-h">
+      <div class="section__head"><h2 id="members-h">Members</h2></div>
+      <div class="card-box empty"><p>Suspend and restore members in a later stage.</p></div>
+    </section>
+  </main>
+  <nav class="bottom-nav" aria-label="Main">
+    <ul>
+      <li><a href="../index.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</a></li>
+      <li><a href="../pages/post.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg></span>Post</a></li>
+      <li><a href="../pages/my-items.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16l-1.5 12.5a2 2 0 0 1-2 1.5h-9a2 2 0 0 1-2-1.5z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg></span>My items</a></li>
+      <li><a href="../pages/profile.html" aria-current="page"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Profile</a></li>
+    </ul>
+  </nav>
+  <script src="../js/mock.js"></script>
+  <script src="../js/render.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Post an item on Dumpy.">
+  <title>Post an item · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="post" data-root="../" class="has-nav">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <h1 class="app-header__title"><span id="post-title">Post an item</span></h1>
+    </div>
+  </header>
+  <main id="main" class="page">
+    <form id="post-form" class="stack" novalidate>
+      <fieldset class="fieldset">
+        <legend class="label">Photos <span class="label__opt">(up to 4)</span></legend>
+        <ul class="photo-picker" id="photo-picker">
+          <li class="photo-slot photo-add" id="photo-add">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Add photo</span>
+            <input id="photos" type="file" accept="image/*" multiple aria-label="Add photos" aria-describedby="photo-hint">
+          </li>
+        </ul>
+        <span class="hint" id="photo-hint">Take a photo or pick from your gallery. Good light helps.</span>
+      </fieldset>
+
+      <div class="field">
+        <label class="label" for="title">Title</label>
+        <input class="input" id="title" name="title" maxlength="80" required placeholder="For example: Wooden study chair" autocomplete="off">
+        <span class="hint">Up to 80 characters.</span>
+      </div>
+
+      <div class="field">
+        <label class="label" for="description">Description <span class="label__opt">(optional)</span></label>
+        <textarea class="textarea" id="description" name="description" placeholder="Size, age, any marks or faults"></textarea>
+      </div>
+
+      <div class="field">
+        <label class="label" for="category">Category</label>
+        <select class="select" id="category" name="category" required></select>
+      </div>
+
+      <fieldset class="fieldset">
+        <legend class="label">Condition</legend>
+        <div class="choice-row">
+          <label class="choice"><input type="radio" name="condition" value="Like new" required><span>Like new</span></label>
+          <label class="choice"><input type="radio" name="condition" value="Good"><span>Good</span></label>
+          <label class="choice"><input type="radio" name="condition" value="Used"><span>Used</span></label>
+          <label class="choice"><input type="radio" name="condition" value="For parts"><span>For parts</span></label>
+        </div>
+      </fieldset>
+
+      <div class="card-box stack">
+        <label class="switch">
+          <span class="switch__text"><strong>Give it away free</strong><br><span class="small muted">Turn off to set a price</span></span>
+          <input type="checkbox" id="free" name="free" checked>
+        </label>
+        <div class="field" id="price-field">
+          <label class="label" for="price">Price in rupees</label>
+          <div class="input-prefix">
+            <span class="input-prefix__sign" aria-hidden="true">₹</span>
+            <input class="input" id="price" name="price" type="number" inputmode="numeric" min="1" step="1" placeholder="200">
+          </div>
+          <span class="hint">Paid by UPI or cash at handover. Dumpy never holds money.</span>
+        </div>
+      </div>
+
+      <p class="small muted">Some things are not allowed, like medicines, alcohol and anything illegal to sell.</p>
+      <button type="submit" class="btn btn--primary btn--lg btn--block" id="post-submit">Post item</button>
+      <p class="notice" id="post-done" tabindex="-1" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><span>Design preview only: posting goes live in a later stage.</span></p>
+    </form>
+  </main>
+  <nav class="bottom-nav" aria-label="Main">
+    <ul>
+      <li><a href="../index.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</a></li>
+      <li><a href="../pages/post.html" aria-current="page"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg></span>Post</a></li>
+      <li><a href="../pages/my-items.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16l-1.5 12.5a2 2 0 0 1-2 1.5h-9a2 2 0 0 1-2-1.5z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg></span>My items</a></li>
+      <li><a href="../pages/profile.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Profile</a></li>
+    </ul>
+  </nav>
+  <script src="../js/mock.js"></script>
+  <script src="../js/render.js"></script>
+</body>
+</html>
