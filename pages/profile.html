@@ -12,15 +12,16 @@
   <link rel="apple-touch-icon" href="../assets/favicon.svg">
   <link rel="stylesheet" href="../css/style.css">
 </head>
-<body data-page="profile" data-root="../" class="has-nav">
+<body data-access="account" data-page="profile" data-root="../" class="has-nav">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
     <div class="app-header__inner">
-      <h1 class="app-header__title">Profile</h1>
+      <h1 class="app-header__title" id="page-title">Profile</h1>
     </div>
   </header>
   <main id="main" class="page">
-    <div class="person">
+    <p class="auth__lead setup-lead" id="setup-lead" hidden>Tell your neighbours who you are. Your society admin checks your name and flat before letting you in.</p>
+    <div class="person" id="profile-person">
       <span class="avatar" id="profile-avatar" aria-hidden="true" style="width:56px;height:56px;font-size:1.375rem"></span>
       <div>
         <p class="person__name" id="profile-name" style="font-size:1.125rem"></p>
@@ -28,23 +29,23 @@
       </div>
     </div>
 
-    <form id="profile-form" class="section stack">
+    <form id="profile-form" class="section stack" novalidate>
       <h2>Your details</h2>
       <div class="field">
         <label class="label" for="display_name">Name shown to neighbours</label>
-        <input class="input" id="display_name" autocomplete="given-name" required>
+        <input class="input" id="display_name" autocomplete="given-name" maxlength="60" required>
       </div>
       <div class="btn-row" style="gap:var(--space-3)">
         <div class="field" style="flex:1;margin:0">
           <label class="label" for="tower">Tower</label>
-          <input class="input" id="tower" required>
+          <input class="input" id="tower" maxlength="40" required placeholder="A">
         </div>
         <div class="field" style="flex:1;margin:0">
           <label class="label" for="flat">Flat</label>
-          <input class="input" id="flat" required>
+          <input class="input" id="flat" maxlength="20" required placeholder="A-101" autocapitalize="characters">
         </div>
       </div>
-      <p class="hint" style="margin-top:var(--space-1)">Your flat is shown only to the person you hand an item to.</p>
+      <p class="hint" style="margin-top:var(--space-1)">Neighbours see your name and tower. Your flat is shown only to your society admin and to the person you hand an item to.</p>
       <div class="field">
         <label class="label" for="phone">Phone <span class="label__opt">(optional)</span></label>
         <input class="input" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="10-digit mobile number" aria-describedby="phone-hint">
@@ -56,7 +57,8 @@
         <span class="hint" id="upi-hint">So buyers can pay you directly.</span>
       </div>
 
-      <div class="card-box stack-sm">
+      <!-- Delivery helper (stage 7) and email switches (stage 9) go live later. -->
+      <div class="card-box stack-sm" hidden>
         <label class="switch">
           <span class="switch__text"><strong>I can help deliver</strong><br><span class="small muted">See delivery jobs from neighbours</span></span>
           <input type="checkbox" id="helper">
@@ -67,17 +69,19 @@
         </label>
       </div>
 
-      <button type="submit" class="btn btn--primary btn--block">Save</button>
-      <p class="notice" id="saved-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Design preview only: saving goes live in a later stage.</span></p>
+      <p class="notice notice--error" id="profile-error" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span></span></p>
+      <button type="submit" class="btn btn--primary btn--block" id="profile-submit">Save</button>
+      <p class="notice" id="saved-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Saved.</span></p>
     </form>
 
     <section class="section">
       <h2 class="visually-hidden">More</h2>
       <ul class="menu">
-        <li id="admin-link"><a href="admin.html">Society admin</a></li>
-        <li><a href="join.html">Join another society</a></li>
-        <li><a class="menu__danger" href="sign-in.html">Sign out</a></li>
+        <li id="admin-link" hidden><a href="admin.html">Society admin</a></li>
+        <li id="join-link"><a href="join.html">Join another society</a></li>
+        <li><a class="menu__danger" href="#" data-sign-out>Sign out</a></li>
       </ul>
+      <p class="small muted signed-as">Signed in as <span id="signed-email"></span></p>
     </section>
   </main>
   <nav class="bottom-nav" aria-label="Main">
@@ -88,7 +92,11 @@
       <li><a href="../pages/profile.html" aria-current="page"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Profile</a></li>
     </ul>
   </nav>
-  <script src="../js/mock.js"></script>
-  <script src="../js/render.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+  <script defer src="../js/config.js"></script>
+  <script defer src="../js/supabase.js"></script>
+  <script defer src="../js/auth.js"></script>
+  <script defer src="../js/data.js"></script>
+  <script defer src="../js/render.js"></script>
 </body>
 </html>

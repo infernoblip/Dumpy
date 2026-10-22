@@ -9,3 +9,4 @@ docs
 supabase
 node_modules
 .wrangler
+tests

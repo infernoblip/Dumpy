@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="assets/favicon.svg">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="feed" data-root="" class="has-nav">
+<body data-access="landing" data-page="feed" data-root="" class="has-nav">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
     <div class="app-header__inner">
@@ -20,11 +20,23 @@
         <img class="brand__logo" src="assets/favicon.svg" alt="" width="32" height="32">
         <span class="brand__text">
           <span class="brand__name">Dumpy</span>
-          <span class="brand__society" id="society-name">Demo Society</span>
+          <span class="brand__society" id="society-name"></span>
         </span>
       </a>
     </div>
   </header>
+  <main id="landing" class="auth landing" hidden>
+    <img class="auth__logo" src="assets/favicon.svg" alt="" width="72" height="72">
+    <h1 class="auth__title">Dumpy</h1>
+    <p class="auth__lead">Give away or sell your extra stuff to neighbours, and pick up things you need, right inside your housing society.</p>
+    <ol class="steps">
+      <li><strong>Sign in with your email.</strong> No password: we email you a link.</li>
+      <li><strong>Join your society</strong> with the invite code from your society admin.</li>
+      <li><strong>Post or grab items.</strong> Most things are free; paid items are settled by UPI or cash between neighbours.</li>
+    </ol>
+    <a class="btn btn--primary btn--lg btn--block" href="pages/sign-in.html">Sign in</a>
+    <p class="auth__foot">Only neighbours approved by your society admin can see items.</p>
+  </main>
   <main id="main" class="page">
     <h1 class="visually-hidden">Items near you</h1>
     <form class="search" id="search-form" role="search">
@@ -44,7 +56,11 @@
       <li><a href="pages/profile.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Profile</a></li>
     </ul>
   </nav>
-  <script src="js/mock.js"></script>
-  <script src="js/render.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+  <script defer src="js/config.js"></script>
+  <script defer src="js/supabase.js"></script>
+  <script defer src="js/auth.js"></script>
+  <script defer src="js/data.js"></script>
+  <script defer src="js/render.js"></script>
 </body>
 </html>

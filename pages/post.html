@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="../assets/favicon.svg">
   <link rel="stylesheet" href="../css/style.css">
 </head>
-<body data-page="post" data-root="../" class="has-nav">
+<body data-access="member" data-page="post" data-root="../" class="has-nav">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
     <div class="app-header__inner">
@@ -87,7 +87,11 @@
       <li><a href="../pages/profile.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Profile</a></li>
     </ul>
   </nav>
-  <script src="../js/mock.js"></script>
-  <script src="../js/render.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+  <script defer src="../js/config.js"></script>
+  <script defer src="../js/supabase.js"></script>
+  <script defer src="../js/auth.js"></script>
+  <script defer src="../js/data.js"></script>
+  <script defer src="../js/render.js"></script>
 </body>
 </html>
