@@ -9,7 +9,7 @@
 # Needs: Postgres 15+ binaries, Node.js 18+, python3, curl, and Playwright with
 # Chromium (npm i -g playwright && npx playwright install chromium).
 # Optional: PLAYWRIGHT_MODULE (path to the playwright package), CHROMIUM_PATH.
-#   bash tests/browser/run.sh            (all tests: stages 4, 5 and 6)
+#   bash tests/browser/run.sh            (all tests: stages 4, 5, 6, 8 and 9)
 #   bash tests/browser/run.sh post.js    (just one)
 set -euo pipefail
 
@@ -34,6 +34,10 @@ trap cleanup EXIT
 
 echo "== downloading supabase-js $SUPABASE_JS_VERSION and PostgREST $POSTGREST_VERSION"
 (cd "$work" && npm pack -q "@supabase/supabase-js@$SUPABASE_JS_VERSION" >/dev/null && tar xzf supabase-supabase-js-*.tgz)
+# Other libraries the pages load from jsdelivr, at the versions they pin.
+for spec in $(grep -ho 'cdn.jsdelivr.net/npm/[^"]*' "$root"/index.html "$root"/pages/*.html | grep -v supabase-js | cut -d/ -f3 | sort -u); do
+  mkdir -p "$work/npm/$spec" && (cd "$work/npm/$spec" && npm pack -q "$spec" >/dev/null && tar xzf *.tgz)
+done
 curl -sSL "https://github.com/PostgREST/postgrest/releases/download/v$POSTGREST_VERSION/postgrest-v$POSTGREST_VERSION-linux-static-x64.tar.xz" | tar xJ -C "$work"
 
 echo "== database"
@@ -64,7 +68,7 @@ for i in $(seq 1 20); do
 done
 
 tests=("$@")
-[ ${#tests[@]} -eq 0 ] && tests=(e2e.js post.js request.js notify.js)
+[ ${#tests[@]} -eq 0 ] && tests=(e2e.js post.js request.js pay.js notify.js)
 for t in "${tests[@]}"; do
   echo "== browser test: $t"
   WORK_DIR="$work" PG_PORT="$pgport" node "$here/$t"

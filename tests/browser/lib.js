@@ -64,8 +64,15 @@ const otpCalls = [];
 const faults = { dropUploads: 0 };
 
 async function wire(context) {
-  await context.route('https://cdn.jsdelivr.net/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/javascript', body: UMD, headers: { 'access-control-allow-origin': '*' } }));
+  // supabase-js from the CDN is the copy run.sh downloaded. Other pinned
+  // libraries (/npm/<name>@<version>/<file>) come from $WORK/npm/<name>@<version>/
+  // when run.sh fetched them (stage 8's QR code library).
+  await context.route('https://cdn.jsdelivr.net/**', (route) => {
+    const m = new URL(route.request().url()).pathname.match(/^\/npm\/((?:@[^/]+\/)?[^/@]+@[^/]+)\/(.+)$/);
+    const local = m && WORK && path.join(WORK, 'npm', m[1], 'package', m[2]);
+    const body = local && fs.existsSync(local) ? fs.readFileSync(local) : UMD;
+    return route.fulfill({ status: 200, contentType: 'application/javascript', body, headers: { 'access-control-allow-origin': '*' } });
+  });
   await context.route(SUPA + '/**', async (route) => {
     const req = route.request();
     const u = new URL(req.url());
