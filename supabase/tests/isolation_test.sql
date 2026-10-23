@@ -1,4 +1,4 @@
--- Dumpy isolation tests (stage 2).
+-- Dumpy isolation tests (stages 2 and 4).
 --
 -- Proves the row-level security rules hold:
 --   * a member of society A cannot read, insert or update society B's rows
@@ -338,6 +338,16 @@ select dumpy_tests.ok((select count(*) from public.listings where society_id = '
   'After asking to join B, an A member still sees nothing of B');
 select dumpy_tests.refused($$ select public.join_society('NOPE0000') $$,
   'A wrong invite code is refused', 'P0002');
+select dumpy_tests.ok((select count(*) from public.my_memberships()) = 2,
+  'my_memberships lists both of your memberships');
+select dumpy_tests.ok((select society_name || '/' || status from public.my_memberships()
+                        where society_id = '7e570000-0000-4000-8000-00000000bbbb') = 'Test Society B/pending',
+  'my_memberships names the society you are still waiting to join');
+
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a3');  -- a_pending
+select dumpy_tests.ok((select count(*) from public.my_memberships()) = 1
+                      and (select status from public.my_memberships()) = 'pending',
+  'my_memberships shows a pending person only their own request');
 
 -- ============================================================ 6. admins
 select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a0');  -- a_admin
@@ -378,6 +388,7 @@ select dumpy_tests.refused($$ select count(*) from public.listings $$, 'A signed
 select dumpy_tests.refused($$ select count(*) from public.profiles $$, 'A signed-out visitor cannot read profiles');
 select dumpy_tests.refused($$ select count(*) from public.societies $$, 'A signed-out visitor cannot read societies');
 select dumpy_tests.refused($$ select public.join_society('TESTAAAA') $$, 'A signed-out visitor cannot join a society');
+select dumpy_tests.refused($$ select * from public.my_memberships() $$, 'A signed-out visitor cannot list memberships');
 select dumpy_tests.ok((select count(*) from storage.objects where bucket_id = 'listing-photos') = 0,
   'A signed-out visitor sees no photo files');
 

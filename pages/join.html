@@ -12,32 +12,48 @@
   <link rel="apple-touch-icon" href="../assets/favicon.svg">
   <link rel="stylesheet" href="../css/style.css">
 </head>
-<body data-page="join" data-root="../" class="">
+<body data-access="join" data-page="join" data-root="../" class="">
   <a class="skip-link" href="#main">Skip to content</a>
   <main id="main" class="auth">
-    <div id="step-form">
+    <div id="step-form" data-step hidden>
       <div class="big-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></div>
       <h1 class="auth__title">Join your society</h1>
-      <p class="auth__lead">Ask your society admin for the invite code.</p>
-      <form id="join-form" class="auth__form">
+      <p class="auth__lead" id="join-lead">Ask your society admin for the invite code.</p>
+      <form id="join-form" class="auth__form" novalidate>
         <div class="field">
           <label class="label" for="code">Invite code</label>
-          <input class="input code-input" id="code" required maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DEMO42">
+          <input class="input code-input" id="code" required maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD2345">
         </div>
+        <p class="notice notice--error" id="join-error" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span></span></p>
         <button type="submit" class="btn btn--primary btn--lg btn--block">Join</button>
       </form>
-      <p class="auth__foot"><a href="sign-in.html">Back to sign in</a></p>
+      <p class="auth__foot" id="join-back" hidden><a href="../index.html">Back to Home</a></p>
     </div>
-    <div id="step-wait" class="center" hidden>
+    <div id="step-wait" class="center" data-step hidden>
       <div class="big-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
       <h1 tabindex="-1">Waiting for approval</h1>
-      <p class="auth__lead">Your request to join Demo Society has been sent. An admin will approve it soon, and you will get an email.</p>
-      <div class="auth__form">
-        <a class="btn btn--primary btn--block" href="../index.html">Preview: open the app</a>
+      <p class="auth__lead">You asked to join <strong id="wait-society"></strong>. An admin checks your name and flat, then lets you in. Come back and tap below to check.</p>
+      <div class="auth__form stack-sm">
+        <button type="button" class="btn btn--primary btn--block" data-check-again>Check again</button>
+        <a class="btn btn--outline btn--block" href="profile.html">Edit my profile</a>
+        <button type="button" class="btn btn--danger btn--block" id="cancel-request">Cancel my request</button>
       </div>
     </div>
+    <div id="step-suspended" class="center" data-step hidden>
+      <div class="big-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/></svg></div>
+      <h1 tabindex="-1">Membership paused</h1>
+      <p class="auth__lead">An admin of <strong id="susp-society"></strong> has paused your membership. Talk to your society admin if you think this is a mistake.</p>
+      <div class="auth__form stack-sm">
+        <button type="button" class="btn btn--primary btn--block" data-check-again>Check again</button>
+      </div>
+    </div>
+    <p class="auth__foot">Signed in as <span id="signed-in-as"></span>. <a href="#" data-sign-out>Sign out</a></p>
   </main>
-  <script src="../js/mock.js"></script>
-  <script src="../js/render.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+  <script defer src="../js/config.js"></script>
+  <script defer src="../js/supabase.js"></script>
+  <script defer src="../js/auth.js"></script>
+  <script defer src="../js/data.js"></script>
+  <script defer src="../js/render.js"></script>
 </body>
 </html>

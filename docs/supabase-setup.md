@@ -139,8 +139,9 @@ when they finish, so they're safe to run on the real project.
      and `http://localhost:8000/**`. Later, add `https://dumpyscrappingapp.in/**`
      and any preview address the pull requests use.
 
-Supabase's built-in email can only send a few sign-in emails per hour.
-That's fine for testing; stage 9 sets up a proper email service.
+Supabase's built-in email only sends to your own Supabase team, a few per
+hour. Before neighbours can sign in, connect an email account: see step 2 of
+[stage-4-setup.md](stage-4-setup.md).
 
 ## 7. Send Claude the two public values
 

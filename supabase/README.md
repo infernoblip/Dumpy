@@ -13,14 +13,14 @@ Setup steps for the real project are in [docs/supabase-setup.md](../docs/supabas
 - Project URL: `https://sfezmqsdzwrjdcqpyhln.supabase.co`
 - Publishable key (public, safe in page code): `sb_publishable_5V49nQQ2FYSsdRDt8kR6iQ_688LWupD`
 - Claude manages it through the Supabase connector (MCP). Migrations applied that way are stamped with the time they ran, so **name each migration file with the version the project records** (`list_migrations`), or the CLI's `db push` will try to run it again.
-- The security advisor warns that signed-in users can call the `SECURITY DEFINER` helpers (`is_member`, `join_society`, ...). That's intended: each one only answers about the caller (`auth.uid()`).
+- The security advisor warns that signed-in users can call the `SECURITY DEFINER` helpers (`is_member`, `join_society`, `my_memberships`, ...). That's intended: each one only answers about the caller (`auth.uid()`).
 
 ## Files
 
 ```
 migrations/            Schema, functions and rules, applied oldest first
 seed.sql               Demo Society, two demo people, five demo items
-snippets/              One-off SQL for the dashboard (remove-demo-data.sql)
+snippets/              One-off SQL for the dashboard (create-society.sql, remove-demo-data.sql)
 tests/isolation_test.sql   Proves the rules (runs in one transaction, rolled back)
 tests/local/           Runs everything on plain Postgres without Docker
 config.toml            Local Supabase CLI settings (not used by the live project)
@@ -74,6 +74,7 @@ permission at all**, not even for the person they belong to. So:
 
 | Function | Use |
 |---|---|
+| `my_memberships()` | Your own memberships with each society's name, including ones still pending (stage 4; the page guard calls it on every page) |
 | `join_society(p_invite_code)` | Creates a pending membership. Returns `society_id, status`. Wrong code raises an error. Case and spaces don't matter. |
 | `get_my_profile()` | Your own profile with private fields |
 | `admin_list_members(p_society_id)` | Admin page member list |

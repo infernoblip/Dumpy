@@ -91,6 +91,7 @@ p { margin: 0; }
 a { color: var(--brand); }
 
 :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+[tabindex="-1"]:focus { outline: none; }
 
 .visually-hidden {
   position: absolute !important;
@@ -526,6 +527,8 @@ a { color: var(--brand); }
 .status--reserved, .status--pending { background: var(--warn-soft); color: var(--warn); }
 .status--done { background: var(--info-soft); color: var(--info); }
 .status--declined, .status--withdrawn, .status--expired, .status--hidden, .status--cancelled { background: var(--surface-2); color: var(--muted); }
+.status--admin { background: var(--info-soft); color: var(--info); }
+.status--suspended { background: var(--danger-soft); color: var(--danger); }
 
 /* ---------- Item page ---------- */
 .gallery {
@@ -691,6 +694,8 @@ a { color: var(--brand); }
 .notice svg { flex: none; width: 22px; height: 22px; color: var(--info); margin-top: 1px; }
 .notice--warn { background: var(--warn-soft); }
 .notice--warn svg { color: var(--warn); }
+.notice--error { background: var(--danger-soft); }
+.notice--error svg { color: var(--danger); }
 
 .empty {
   text-align: center;
@@ -745,7 +750,69 @@ a { color: var(--brand); }
 }
 .big-icon svg { width: 36px; height: 36px; }
 
+.auth__notice { margin-top: var(--space-5); text-align: left; }
+.auth__form .notice { margin-top: var(--space); }
+.auth .stack-sm .btn { margin-top: 0; }
+
+/* Public landing (home page, signed out) */
+.steps { list-style: none; counter-reset: step; margin: var(--space-6) 0 var(--space-5); padding: 0; }
+.steps li { counter-increment: step; position: relative; padding-left: 44px; min-height: 32px; }
+.steps li + li { margin-top: var(--space); }
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 700;
+}
+body[data-view="landing"] .app-header,
+body[data-view="landing"] .bottom-nav { display: none; }
+
+/* Profile set-up (before joining a society): no app navigation yet */
+body[data-setup="true"] .bottom-nav { display: none; }
+.setup-lead { text-align: left; margin: 0 0 var(--space); }
+.signed-as { margin-top: var(--space-3); text-align: center; overflow-wrap: anywhere; }
+
+/* Admin: invite code */
+.invite { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.invite__code { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.invite .btn { flex: none; }
+
 .code-input { text-transform: uppercase; letter-spacing: 0.3em; text-align: center; font-size: 1.25rem; font-weight: 700; }
+
+/* ---------- Loading and errors (js/auth.js) ---------- */
+body[data-auth="loading"] > :not(.skip-link),
+body[data-auth="error"] > :not(.boot-error) { visibility: hidden; }
+body[data-auth="loading"]::after {
+  content: "Loading…";
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.boot-error {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space);
+  padding: var(--space);
+  text-align: center;
+}
+
+/* Item without photos */
+.photo-none { display: grid; place-items: center; width: 100%; height: 100%; color: var(--muted); }
+.photo-none svg { width: 40%; max-width: 96px; height: auto; opacity: 0.6; }
 
 /* ---------- Utilities ---------- */
 .muted { color: var(--muted); }
