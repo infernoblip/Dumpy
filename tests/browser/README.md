@@ -1,7 +1,11 @@
-# Browser test (stage 4)
+# Browser tests
 
-`run.sh` checks the sign-in and joining flow end to end in a 360 x 740 phone
-viewport, without touching the live Supabase project:
+`run.sh` runs two tests end to end in a 360 x 740 phone viewport, without
+touching the live Supabase project. Shared pieces (the stand-in for Supabase,
+the checks) are in `lib.js`.
+
+## Stage 4: signing in and joining (`e2e.js`)
+
 
 1. A signed-out visitor sees the public landing; private pages send them there.
 2. Sign in asks Supabase for a magic link to the right address and shows "Check your email".
@@ -16,7 +20,27 @@ viewport, without touching the live Supabase project:
 It also checks for sideways scrolling and tap targets under 44 px, and saves
 the screenshots in `docs/screenshots/stage-4/`.
 
+## Stage 5: posting items with photos (`post.js`)
+
+1. The form catches a missing title, category or price before anything is saved.
+2. Five camera-sized photos (6 to 9 MB each) are picked: four are kept, one is removed.
+3. The first upload is cut off: the form stays filled, the failed photo is marked,
+   and Try again finishes without posting the item twice.
+4. The database and Storage hold the item with the right owner, society,
+   category, condition and price, and 3 photos at `society_id/listing_id/`,
+   each about 110 to 150 KB and at most 1280 px on the long edge.
+5. Another member sees it in the feed but is refused when they try to edit,
+   withdraw, add or remove photos, upload into its folder, delete its files,
+   or post in the owner's name.
+6. The owner edits it (new title, Free, cover photo removed, a photo added),
+   withdraws it (it leaves the feed), and posts it again.
+
+Storage is faked in `lib.js`, but each upload, read and delete runs in the
+local Postgres as the signed-in person, so the real Storage rules from
+`supabase/migrations` decide what is allowed. Screenshots go to
+`docs/screenshots/stage-5/`.
+
 The email itself is faked: the test makes a sign-in link the same shape as
 Supabase's (`#access_token=...`) with a key known only to the throwaway local
-database. Run it with `bash tests/browser/run.sh`; the top of that file lists
-what it needs. All test people and items are made up (Demo Society, example.com).
+database. Run them with `bash tests/browser/run.sh` (or `bash tests/browser/run.sh post.js`
+for one); the top of that file lists what it needs. All test people and items are made up (Demo Society, example.com).

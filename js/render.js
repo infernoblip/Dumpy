@@ -219,21 +219,44 @@
       }, { passive: true });
     }
 
-    // Asking for items goes live in stage 6.
+    var params = new URLSearchParams(location.search);
+    if (params.get("posted") || params.get("saved")) {
+      var note = $("#posted-note");
+      note.querySelector("span").textContent = params.get("posted")
+        ? "Your item is posted. Neighbours in your society can see it now."
+        : "Changes saved.";
+      note.hidden = false;
+      history.replaceState(null, "", "item.html?id=" + encodeURIComponent(l.id));
+    }
+
     var btn = $("#want-btn");
     $("#action-price").textContent = priceText(l.price_inr);
-    if (l.owner_id === state.user.id) btn.textContent = "This is your item";
-    else if (l.status !== "available") btn.textContent = l.status === "reserved" ? "Reserved for someone" : "No longer available";
+    if (l.owner_id === state.user.id) {
+      // Owners edit their item from here; others' buttons wait for stage 6.
+      if (l.status !== "available") main.querySelector(".item-head").insertAdjacentHTML("beforeend", statusPill(l.status));
+      if (l.status === "hidden") { btn.textContent = "Hidden by your admin"; btn.disabled = true; return; }
+      var edit = document.createElement("a");
+      edit.className = btn.className;
+      edit.id = "edit-btn";
+      edit.href = "post.html?id=" + encodeURIComponent(l.id);
+      edit.textContent = "Edit item";
+      btn.replaceWith(edit);
+      return;
+    }
+    // Asking for items goes live in stage 6.
+    if (l.status !== "available") btn.textContent = l.status === "reserved" ? "Reserved for someone" : "No longer available";
     else btn.textContent = "Requests open soon";
     btn.disabled = true;
   }
 
   /* ---------- My items ---------- */
-  async function initMyItems(state) {
+  async function initMyItems(state, again) {
     var list = $("#listings");
     var mineReq = $("#my-requests");
-    wireTabs();
-    list.innerHTML = '<li class="empty"><p>Loading…</p></li>';
+    if (!again) {
+      wireTabs();
+      list.innerHTML = '<li class="empty"><p>Loading…</p></li>';
+    }
     var d;
     try {
       d = await Dumpy.data.myItems(state.user.id, state.society.society_id);
@@ -255,12 +278,32 @@
               statusPill(r.status) + "</div></div></div>";
           }).join("") + "</div>";
       }
-      return '<li class="row-card"><div class="row-card__top">' +
+      return '<li class="row-card" data-listing="' + esc(l.id) + '" data-title="' + esc(l.title) + '"><div class="row-card__top">' +
         '<a class="row-card__thumb" href="item.html?id=' + esc(l.id) + '" tabindex="-1" aria-hidden="true">' + photo(l.photos[0], "") + "</a>" +
         '<div class="row-card__main"><a class="row-card__title" href="item.html?id=' + esc(l.id) + '"><span>' + esc(l.title) + "</span></a>" +
         '<p class="row-card__meta">' + priceText(l.price_inr) + " · posted " + timeAgo(l.created_at) + "</p>" +
-        statusPill(l.status) + "</div></div>" + reqHTML + "</li>";
+        statusPill(l.status) + "</div></div>" + ownerActions(l) + reqHTML + "</li>";
     }).join("") : '<li class="empty"><p>You have not posted anything yet.</p><a class="btn btn--primary" href="post.html">Post an item</a></li>';
+
+    if (!again) list.addEventListener("click", async function (e) {
+      var b = e.target.closest("button[data-act]");
+      if (!b || b.disabled) return;
+      var li = b.closest("[data-listing]");
+      var id = li.dataset.listing;
+      var withdrawing = b.dataset.act === "withdraw";
+      if (withdrawing && !confirm("Withdraw “" + li.dataset.title + "”? Neighbours will stop seeing it. You can post it again later.")) return;
+      li.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
+      setBusy(b, true, withdrawing ? "Withdrawing…" : "Posting…");
+      try {
+        await (withdrawing ? Dumpy.data.withdraw(id) : Dumpy.data.relist(id));
+      } catch (err) {
+        setBusy(b, false);
+        li.querySelectorAll("button").forEach(function (x) { x.disabled = false; });
+        alert(problem(err));
+        return;
+      }
+      initMyItemsAgain(state);
+    });
 
     var asked = d.outgoing.filter(function (r) { return r.listing; });
     mineReq.innerHTML = asked.length ? asked.map(function (r) {
@@ -271,6 +314,26 @@
         '<p class="row-card__meta">' + priceText(l.price_inr) + " · " + esc(l.owner.display_name) + (l.owner.tower ? ", " + esc(tower(l.owner.tower)) : "") + "</p>" +
         statusPill(r.status) + "</div></div></li>";
     }).join("") : '<li class="empty"><p>You have not asked for anything yet.</p><a class="btn btn--primary" href="../index.html">Browse items</a></li>';
+  }
+
+  // Edit and Withdraw for available items; Edit and Post again for withdrawn
+  // ones. Reserved and handed-over items get their actions in stage 6.
+  function ownerActions(l) {
+    var edit = '<a class="btn btn--outline btn--sm" href="post.html?id=' + esc(l.id) + '">Edit</a>';
+    if (l.status === "available") {
+      return '<div class="btn-row">' + edit + '<button type="button" class="btn btn--danger btn--sm" data-act="withdraw">Withdraw</button></div>';
+    }
+    if (l.status === "withdrawn") {
+      return '<div class="btn-row">' + edit + '<button type="button" class="btn btn--primary btn--sm" data-act="relist">Post again</button></div>';
+    }
+    if (l.status === "hidden") return '<p class="small muted row-card__note">Your society admin hid this item.</p>';
+    return "";
+  }
+
+  // Redraw My items after a change, keeping the tab and scroll position.
+  function initMyItemsAgain(state) {
+    var y = window.scrollY;
+    initMyItems(state, true).then(function () { window.scrollTo(0, y); });
   }
 
   function wireTabs() {
@@ -293,50 +356,6 @@
       });
     });
     if (location.hash === "#requests") select(tabs[1]);
-  }
-
-  /* ---------- Post (goes live in stage 5) ---------- */
-  function initPost() {
-    var cat = $("#category");
-    cat.innerHTML = '<option value="">Choose one</option>' + Dumpy.data.CATEGORIES.map(function (c) {
-      return '<option value="' + esc(c[0]) + '">' + esc(c[1]) + "</option>";
-    }).join("");
-
-    var free = $("#free");
-    var price = $("#price");
-    var priceField = $("#price-field");
-    function syncPrice() {
-      priceField.hidden = free.checked;
-      price.required = !free.checked;
-      if (free.checked) price.value = "";
-    }
-    free.addEventListener("change", syncPrice);
-    syncPrice();
-
-    var picker = $("#photo-picker");
-    var input = $("#photos");
-    var addSlot = $("#photo-add");
-    var hint = $("#photo-hint");
-    input.addEventListener("change", function () {
-      picker.querySelectorAll(".photo-slot--preview").forEach(function (n) { n.remove(); });
-      Array.prototype.slice.call(input.files, 0, 4).forEach(function (f) {
-        var li = document.createElement("li");
-        li.className = "photo-slot photo-slot--preview";
-        var img = document.createElement("img");
-        img.alt = "";
-        img.src = URL.createObjectURL(f);
-        li.appendChild(img);
-        picker.insertBefore(li, addSlot);
-      });
-      hint.textContent = input.files.length > 4 ? "Only the first 4 photos are kept." : input.files.length + " of 4 photos added.";
-    });
-
-    $("#post-form").addEventListener("submit", function (e) {
-      e.preventDefault();
-      var done = $("#post-done");
-      done.hidden = false;
-      done.focus();
-    });
   }
 
   /* ---------- Profile (also first-time setup) ---------- */
@@ -598,7 +617,7 @@
   var ICON_BOX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/></svg>';
 
   var pages = {
-    feed: initHome, item: initItem, "my-items": initMyItems, post: initPost,
+    feed: initHome, item: initItem, "my-items": initMyItems,
     profile: initProfile, "sign-in": initSignIn, join: initJoin, admin: initAdmin
   };
   var init = pages[body.dataset.page];
@@ -606,6 +625,6 @@
     Dumpy.ready.then(init).catch(function (err) { console.error(err); });
   }
 
-  // Shared helpers for later stages.
-  Dumpy.render = { esc: esc, timeAgo: timeAgo, rupees: rupees, priceBadge: priceBadge, itemCard: itemCard, statusPill: statusPill, photo: photo, problem: problem };
+  // Shared helpers for js/post.js and later stages.
+  Dumpy.render = { esc: esc, timeAgo: timeAgo, rupees: rupees, priceBadge: priceBadge, itemCard: itemCard, statusPill: statusPill, photo: photo, problem: problem, setBusy: setBusy };
 })();

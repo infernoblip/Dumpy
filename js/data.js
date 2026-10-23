@@ -1,6 +1,7 @@
 /* Reads Dumpy data from Supabase and shapes it for js/render.js.
    Every query here is limited by the database rules anyway; the filters only
-   pick what the page needs. Stages 5 and 6 add the writes (posting, requests). */
+   pick what the page needs. Writes (posting, editing, photos) are allowed or
+   refused by the same rules: a write the rules refuse changes no rows. */
 (function () {
   var Dumpy = (window.Dumpy = window.Dumpy || {});
   var db = Dumpy.db;
@@ -121,12 +122,99 @@
     return { listings: mine, incoming: incoming, outgoing: outgoing };
   }
 
+  /* ---------- Writes (stage 5) ---------- */
+
+  // The listing fields a person may set. Everything else (owner, society,
+  // status on insert) is fixed by the database rules.
+  var EDITABLE = ["title", "description", "category", "condition", "price_inr"];
+  function pick(fields) {
+    var row = {};
+    EDITABLE.forEach(function (k) { if (k in fields) row[k] = fields[k]; });
+    return row;
+  }
+
+  // A refused update changes no rows and returns none, without an error.
+  function oneRow(rows) {
+    if (!rows || !rows.length) throw new Error("You can only change your own items.");
+    return rows[0];
+  }
+
+  // Post a new item. Returns its id.
+  async function createListing(societyId, ownerId, fields) {
+    var row = Object.assign(pick(fields), { society_id: societyId, owner_id: ownerId });
+    return check(await db.from("listings").insert(row).select("id").single()).id;
+  }
+
+  async function updateListing(id, fields) {
+    return oneRow(check(await db.from("listings").update(fields).eq("id", id).select("id, status")));
+  }
+
+  function editListing(id, fields) { return updateListing(id, pick(fields)); }
+
+  function withdraw(id) { return updateListing(id, { status: "withdrawn" }); }
+
+  // Put a withdrawn item back up for another 30 days.
+  function relist(id) {
+    return updateListing(id, { status: "available", expires_at: new Date(Date.now() + 30 * 864e5).toISOString() });
+  }
+
+  // A listing's photo rows, in order, each with a signed URL to show it.
+  async function photoRows(listingId) {
+    var rows = check(await db.from("listing_photos")
+      .select("id, storage_path, position").eq("listing_id", listingId).order("position"));
+    if (!rows.length) return rows;
+    var signed = check(await db.storage.from(BUCKET).createSignedUrls(rows.map(function (r) { return r.storage_path; }), 3600));
+    rows.forEach(function (r, i) { r.url = signed[i] && signed[i].signedUrl; });
+    return rows;
+  }
+
+  function randomName() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  }
+
+  // Upload one shrunk photo to <society_id>/<listing_id>/<random>.<ext> and
+  // record it. If the record can't be saved, the file is removed again.
+  async function addPhoto(listing, blob, position) {
+    var ext = blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
+    var path = listing.society_id + "/" + listing.id + "/" + randomName() + "." + ext;
+    check(await db.storage.from(BUCKET).upload(path, blob, { contentType: blob.type, cacheControl: "31536000", upsert: false }));
+    var res = await db.from("listing_photos")
+      .insert({ listing_id: listing.id, society_id: listing.society_id, storage_path: path, position: position })
+      .select("id, storage_path, position").single();
+    if (res.error) {
+      await db.storage.from(BUCKET).remove([path]);
+      throw res.error;
+    }
+    return res.data;
+  }
+
+  async function removePhoto(row) {
+    oneRow(check(await db.from("listing_photos").delete().eq("id", row.id).select("id")));
+    // The record is gone, so nobody sees the photo any more; a file left
+    // behind by a failed delete is harmless.
+    await db.storage.from(BUCKET).remove([row.storage_path]);
+  }
+
+  async function movePhoto(row, position) {
+    oneRow(check(await db.from("listing_photos").update({ position: position }).eq("id", row.id).select("id")));
+    row.position = position;
+  }
+
   Dumpy.data = {
     CATEGORIES: CATEGORIES,
     CONDITIONS: CONDITIONS,
     feed: feed,
     listing: listing,
     myItems: myItems,
+    createListing: createListing,
+    editListing: editListing,
+    withdraw: withdraw,
+    relist: relist,
+    photoRows: photoRows,
+    addPhoto: addPhoto,
+    removePhoto: removePhoto,
+    movePhoto: movePhoto,
     check: check
   };
 })();
