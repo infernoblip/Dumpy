@@ -1,10 +1,12 @@
--- Dumpy isolation tests (stages 2 and 4).
+-- Dumpy isolation tests (stages 2, 4 and 6).
 --
 -- Proves the row-level security rules hold:
 --   * a member of society A cannot read, insert or update society B's rows
 --   * a pending (or suspended) member sees nothing
 --   * one member cannot edit another member's listing
 --   * flat, phone and UPI ID are never readable through a plain select
+--   * only an item's owner accepts a request, exactly one request wins, and
+--     contact details reach only the owner and the accepted requester (stage 6)
 --
 -- How to run:
 --   * Supabase dashboard: SQL Editor > New query, paste this whole file, Run.
@@ -403,6 +405,129 @@ select dumpy_tests.refused($$
   insert into public.requests (listing_id, society_id, requester_id) values
     ('7e570000-0000-4000-8000-0000000a1111', '7e570000-0000-4000-8000-00000000bbbb', '7e570000-0000-4000-8000-0000000000b1')
 $$, 'A request''s society must match its listing''s society', '23503');
+
+-- ========================================= 9. requests and handover (stage 6)
+-- A3: a paid item of a_owner's. a_other, a_admin and a_pending (approved in
+-- section 6) ask for it.
+insert into public.listings (id, society_id, owner_id, title, price_inr) values
+  ('7e570000-0000-4000-8000-0000000a3333', '7e570000-0000-4000-8000-00000000aaaa', '7e570000-0000-4000-8000-0000000000a1', 'A3 desk', 200);
+
+insert into public.requests (id, listing_id, society_id, requester_id, message) values
+  ('7e570000-0000-4000-8000-00000000f001', '7e570000-0000-4000-8000-0000000a3333', '7e570000-0000-4000-8000-00000000aaaa', '7e570000-0000-4000-8000-0000000000a2', 'other wants A3'),
+  ('7e570000-0000-4000-8000-00000000f002', '7e570000-0000-4000-8000-0000000a3333', '7e570000-0000-4000-8000-00000000aaaa', '7e570000-0000-4000-8000-0000000000a0', ''),
+  ('7e570000-0000-4000-8000-00000000f003', '7e570000-0000-4000-8000-0000000a3333', '7e570000-0000-4000-8000-00000000aaaa', '7e570000-0000-4000-8000-0000000000a3', '');
+
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a2');
+select dumpy_tests.refused($$
+  insert into public.requests (listing_id, society_id, requester_id, message)
+  values ('7e570000-0000-4000-8000-0000000a3333', '7e570000-0000-4000-8000-00000000aaaa', auth.uid(), 'again')
+$$, 'A person can ask for an item only once', '23505');
+select dumpy_tests.ok((select count(*) from public.requests where listing_id = '7e570000-0000-4000-8000-0000000a3333') = 1,
+  'A requester sees only their own request, not other people''s');
+
+-- Only the owner accepts.
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a2');
+select dumpy_tests.refused($$ select public.accept_request('7e570000-0000-4000-8000-00000000f001') $$,
+  'A requester cannot accept their own request');
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a0');
+select dumpy_tests.refused($$ select public.accept_request('7e570000-0000-4000-8000-00000000f001') $$,
+  'Even an admin cannot accept a request on someone else''s item');
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000b1');
+select dumpy_tests.refused($$ select public.accept_request('7e570000-0000-4000-8000-00000000f001') $$,
+  'A member of B cannot accept a request in A');
+
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a1');  -- a_owner
+select dumpy_tests.ok((select count(*) from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 0,
+  'get_contact gives nothing before a request is accepted');
+select dumpy_tests.refused($$
+  update public.listings set status = 'reserved' where id = '7e570000-0000-4000-8000-0000000a3333'
+$$, 'An owner cannot reserve an item by plain update');
+select dumpy_tests.refused($$
+  update public.listings set status = 'done' where id = '7e570000-0000-4000-8000-0000000a3333'
+$$, 'An owner cannot mark an item handed over by plain update');
+select dumpy_tests.refused($$ select public.mark_handed_over('7e570000-0000-4000-8000-0000000a3333') $$,
+  'An available item cannot be marked handed over', '55000');
+
+select public.accept_request('7e570000-0000-4000-8000-00000000f001');
+select dumpy_tests.ok((select status from public.listings where id = '7e570000-0000-4000-8000-0000000a3333') = 'reserved',
+  'accept_request reserves the item');
+select dumpy_tests.ok((select string_agg(status, ',' order by id) from public.requests
+                        where listing_id = '7e570000-0000-4000-8000-0000000a3333') = 'accepted,declined,declined',
+  'accept_request accepts one request and declines the others');
+select dumpy_tests.refused($$ select public.accept_request('7e570000-0000-4000-8000-00000000f002') $$,
+  'A second accept on the same item is refused', '55000');
+select dumpy_tests.ok((select count(*) from public.requests
+                        where listing_id = '7e570000-0000-4000-8000-0000000a3333' and status = 'accepted') = 1,
+  'Exactly one request is accepted');
+
+-- Contact details: only the pair.
+select dumpy_tests.ok((select display_name || '/' || flat || '/' || phone || '/' || coalesce(upi_id, '-')
+                        from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 'Test Other/B-201/9000000012/-',
+  'The owner gets the accepted requester''s name, flat and phone (and no UPI ID)');
+select dumpy_tests.refused($$
+  update public.listings set status = 'available' where id = '7e570000-0000-4000-8000-0000000a3333'
+$$, 'An owner cannot un-reserve by plain update (the accepted request would be left behind)');
+select dumpy_tests.refused($$
+  update public.listings set status = 'withdrawn' where id = '7e570000-0000-4000-8000-0000000a3333'
+$$, 'An owner cannot withdraw a reserved item without cancelling the reservation');
+
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a2');  -- the accepted requester
+select dumpy_tests.ok((select display_name || '/' || flat || '/' || phone || '/' || upi_id || '/' || is_owner
+                        from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 'Test Owner/A-102/9000000099/test.owner@upi/true',
+  'The accepted requester gets the owner''s name, flat, phone and UPI ID');
+select dumpy_tests.refused($$ select public.mark_handed_over('7e570000-0000-4000-8000-0000000a3333') $$,
+  'The requester cannot mark the item handed over');
+select dumpy_tests.refused($$ select public.cancel_reservation('7e570000-0000-4000-8000-0000000a3333') $$,
+  'The requester cannot cancel the owner''s reservation');
+
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a0');  -- declined requester, also admin
+select dumpy_tests.ok((select count(*) from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 0,
+  'get_contact gives a declined requester nothing, even an admin');
+select dumpy_tests.ok((select status from public.requests where id = '7e570000-0000-4000-8000-00000000f002') = 'declined'
+                      and (select status from public.listings where id = '7e570000-0000-4000-8000-0000000a3333') = 'reserved',
+  'A declined requester sees their request declined and the item reserved');
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a3');
+select dumpy_tests.ok((select count(*) from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 0,
+  'get_contact gives another declined requester nothing');
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000b1');
+select dumpy_tests.ok((select count(*) from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 0,
+  'get_contact gives a member of another society nothing');
+select dumpy_tests.act_as(null);
+select dumpy_tests.refused($$ select * from public.get_contact('7e570000-0000-4000-8000-0000000a3333') $$,
+  'A signed-out visitor cannot call get_contact');
+
+-- Cancel the reservation: the item is available again and the others get their turn.
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a1');
+select public.cancel_reservation('7e570000-0000-4000-8000-0000000a3333');
+select dumpy_tests.ok((select status from public.listings where id = '7e570000-0000-4000-8000-0000000a3333') = 'available'
+                      and (select string_agg(status, ',' order by id) from public.requests
+                           where listing_id = '7e570000-0000-4000-8000-0000000a3333') = 'cancelled,pending,pending',
+  'cancel_reservation makes the item available, cancels that request and reopens the others');
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a2');
+select dumpy_tests.ok((select count(*) from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 0,
+  'After a cancelled reservation, get_contact gives the old requester nothing');
+
+-- Accept someone else, then hand it over.
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a1');
+select public.accept_request('7e570000-0000-4000-8000-00000000f002');
+select public.mark_handed_over('7e570000-0000-4000-8000-0000000a3333');
+select dumpy_tests.ok((select status from public.listings where id = '7e570000-0000-4000-8000-0000000a3333') = 'done',
+  'mark_handed_over moves the item to done');
+select dumpy_tests.ok((select display_name from public.get_contact('7e570000-0000-4000-8000-0000000a3333')) = 'Test Admin',
+  'After handover the pair can still see each other''s contact');
+select dumpy_tests.refused($$ select public.cancel_reservation('7e570000-0000-4000-8000-0000000a3333') $$,
+  'A handed-over item cannot be un-reserved', '55000');
+select dumpy_tests.refused($$
+  update public.listings set status = 'available' where id = '7e570000-0000-4000-8000-0000000a3333'
+$$, 'A handed-over item cannot be put back up by plain update');
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a3');
+select dumpy_tests.ok((select status from public.listings where id = '7e570000-0000-4000-8000-0000000a3333') = 'done'
+                      and (select status from public.requests where id = '7e570000-0000-4000-8000-00000000f003') = 'declined',
+  'Other requesters see the item as handed over and their request declined');
+select dumpy_tests.act_as('7e570000-0000-4000-8000-0000000000a0');
+select dumpy_tests.ok(dumpy_tests.changed($$
+  update public.listings set status = 'hidden' where id = '7e570000-0000-4000-8000-0000000a3333'
+$$) = 1, 'An admin can still hide a handed-over item');
 
 select 'All Dumpy isolation tests passed' as result;
 

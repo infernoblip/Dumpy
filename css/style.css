@@ -589,7 +589,7 @@ a { color: var(--brand); }
 .status--available, .status--accepted, .status--approved { background: var(--brand-soft); color: var(--brand); }
 .status--reserved, .status--pending { background: var(--warn-soft); color: var(--warn); }
 .status--done { background: var(--info-soft); color: var(--info); }
-.status--declined, .status--withdrawn, .status--expired, .status--hidden, .status--cancelled { background: var(--surface-2); color: var(--muted); }
+.status--declined, .status--gone, .status--withdrawn, .status--expired, .status--hidden, .status--cancelled { background: var(--surface-2); color: var(--muted); }
 .status--admin { background: var(--info-soft); color: var(--info); }
 .status--suspended { background: var(--danger-soft); color: var(--danger); }
 
@@ -747,6 +747,13 @@ a { color: var(--brand); }
 .request .person { align-items: flex-start; }
 .request__msg { font-size: 0.9375rem; margin-top: 2px; }
 .request .btn-row { margin-top: var(--space-2); }
+.request .btn-row > .btn { flex: 0 1 auto; }
+
+/* The matched pair's contact details (stage 6). */
+.contact .btn svg { width: 20px; height: 20px; flex: none; }
+.requests .contact h2 { font-size: 0.875rem; font-weight: 700; color: var(--muted); }
+.requests .contact + .btn-row { margin-top: var(--space-3); }
+.item-head + .notice { margin-top: var(--space); }
 
 .notice {
   display: flex;
@@ -762,6 +769,10 @@ a { color: var(--brand); }
 .notice--warn svg { color: var(--warn); }
 .notice--error { background: var(--danger-soft); }
 .notice--error svg { color: var(--danger); }
+.notice--link { align-items: center; min-height: var(--tap); text-decoration: none; }
+.notice--link span { text-decoration: underline; text-underline-offset: 2px; }
+
+.load-more { margin-top: var(--space); }
 
 .empty {
   text-align: center;

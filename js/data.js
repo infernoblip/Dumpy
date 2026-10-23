@@ -70,14 +70,30 @@
     return l;
   }
 
-  // Home feed: available items in the society, newest first.
-  // Stage 6 adds paging ("Load more"); 100 is plenty until then.
-  async function feed(societyId) {
-    var rows = check(await db.from("listings").select(LISTING_COLUMNS)
-      .eq("society_id", societyId).eq("status", "available")
-      .order("created_at", { ascending: false }).limit(100));
+  // Home feed: available items in the society, newest first, a page at a time.
+  //   filter: "all", "free", "paid" or a category value
+  //   q:      words to find in the title (case doesn't matter)
+  // Returns { items, more }: more is true when another page is waiting.
+  var PAGE = 20;
+  async function feed(societyId, opts) {
+    opts = opts || {};
+    var from = opts.offset || 0;
+    var query = db.from("listings").select(LISTING_COLUMNS)
+      .eq("society_id", societyId).eq("status", "available");
+    var f = opts.filter || "all";
+    if (f === "free") query = query.eq("price_inr", 0);
+    else if (f === "paid") query = query.gt("price_inr", 0);
+    else if (f !== "all") query = query.eq("category", f);
+    var q = (opts.q || "").trim();
+    // % and _ are wildcards in ilike; a backslash makes them plain characters.
+    if (q) query = query.ilike("title", "%" + q.replace(/[\\%_]/g, "\\$&") + "%");
+    // Ask for one extra row to learn whether there is another page.
+    var rows = check(await query.order("created_at", { ascending: false }).order("id")
+      .range(from, from + PAGE));
+    var more = rows.length > PAGE;
+    rows = rows.slice(0, PAGE);
     var r = await Promise.all([people(rows.map(function (l) { return l.owner_id; })), photos(rows.map(function (l) { return l.id; }), true)]);
-    return rows.map(function (l) { return shape(l, r[0], r[1]); });
+    return { items: rows.map(function (l) { return shape(l, r[0], r[1]); }), more: more };
   }
 
   // One item, or null if it doesn't exist or the visitor may not see it.
@@ -90,6 +106,8 @@
   }
 
   // My items: what I posted in this society (with requests on them), and what I asked for.
+  // Reserved and handed-over items also carry the other person's contact
+  // details (listing.contact), which only the matched pair can get.
   async function myItems(userId, societyId) {
     var mine = check(await db.from("listings").select(LISTING_COLUMNS)
       .eq("society_id", societyId).eq("owner_id", userId)
@@ -97,10 +115,10 @@
     var mineIds = mine.map(function (l) { return l.id; });
 
     var incoming = mineIds.length ? check(await db.from("requests")
-      .select("id, listing_id, requester_id, message, status, created_at")
+      .select(REQUEST_COLUMNS)
       .in("listing_id", mineIds).order("created_at")) : [];
     var outgoing = check(await db.from("requests")
-      .select("id, listing_id, requester_id, message, status, created_at")
+      .select(REQUEST_COLUMNS)
       .eq("society_id", societyId).eq("requester_id", userId)
       .order("created_at", { ascending: false }));
 
@@ -108,11 +126,16 @@
       .in("id", outgoing.map(function (q) { return q.listing_id; }))) : [];
 
     var all = mine.concat(askedFor);
+    var paired = mine.filter(isMatched).concat(askedFor.filter(function (l) {
+      return isMatched(l) && outgoing.some(function (q) { return q.listing_id === l.id && q.status === "accepted"; });
+    }));
     var r = await Promise.all([
       people(all.map(function (l) { return l.owner_id; }).concat(incoming.map(function (q) { return q.requester_id; }))),
-      photos(all.map(function (l) { return l.id; }), true)
+      photos(all.map(function (l) { return l.id; }), true),
+      Promise.all(paired.map(function (l) { return contact(l.id); }))
     ]);
     all.forEach(function (l) { shape(l, r[0], r[1]); });
+    paired.forEach(function (l, i) { l.contact = r[2][i]; });
     incoming.forEach(function (q) { q.requester = r[0][q.requester_id] || { display_name: "A neighbour", tower: "" }; });
 
     var byId = {};
@@ -120,6 +143,50 @@
     outgoing.forEach(function (q) { q.listing = byId[q.listing_id] || null; });
 
     return { listings: mine, incoming: incoming, outgoing: outgoing };
+  }
+
+  function isMatched(l) { return l.status === "reserved" || l.status === "done"; }
+
+  /* ---------- Requests and handover (stage 6) ---------- */
+
+  var REQUEST_COLUMNS = "id, listing_id, requester_id, message, status, created_at";
+
+  // The signed-in person's own request for an item, or null.
+  async function myRequest(listingId, userId) {
+    var rows = check(await db.from("requests").select(REQUEST_COLUMNS)
+      .eq("listing_id", listingId).eq("requester_id", userId).limit(1));
+    return rows[0] || null;
+  }
+
+  // Requests on an item the signed-in person owns (others get none back).
+  async function requestsOn(listingId) {
+    return check(await db.from("requests").select(REQUEST_COLUMNS)
+      .eq("listing_id", listingId).order("created_at"));
+  }
+
+  // "I want this". The database allows one request per person per item, only
+  // on available items posted by someone else in the same society.
+  async function requestItem(listing, userId, message) {
+    var res = await db.from("requests").insert({
+      listing_id: listing.id, society_id: listing.society_id, requester_id: userId, message: message || ""
+    });
+    if (res.error && res.error.code === "23505") throw new Error("You have already asked for this item.");
+    if (res.error && res.error.code === "42501") throw new Error("This item is no longer available.");
+    check(res);
+  }
+
+  // Owner actions. Each one runs in the database as a single step, and the
+  // database checks that the caller owns the item.
+  async function rpc(name, args) { check(await db.rpc(name, args)); }
+  function acceptRequest(requestId) { return rpc("accept_request", { p_request_id: requestId }); }
+  function markHandedOver(listingId) { return rpc("mark_handed_over", { p_listing_id: listingId }); }
+  function cancelReservation(listingId) { return rpc("cancel_reservation", { p_listing_id: listingId }); }
+
+  // The other person's name, tower, flat and phone, or null. Only the owner and
+  // the accepted requester of a reserved or handed-over item get anything.
+  async function contact(listingId) {
+    var rows = check(await db.rpc("get_contact", { p_listing_id: listingId }));
+    return (rows && rows[0]) || null;
   }
 
   /* ---------- Writes (stage 5) ---------- */
@@ -207,6 +274,13 @@
     feed: feed,
     listing: listing,
     myItems: myItems,
+    myRequest: myRequest,
+    requestsOn: requestsOn,
+    requestItem: requestItem,
+    acceptRequest: acceptRequest,
+    markHandedOver: markHandedOver,
+    cancelReservation: cancelReservation,
+    contact: contact,
     createListing: createListing,
     editListing: editListing,
     withdraw: withdraw,

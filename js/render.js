@@ -40,7 +40,8 @@
   var STATUS_LABEL = {
     available: "Available", reserved: "Reserved", done: "Handed over",
     withdrawn: "Withdrawn", hidden: "Hidden", expired: "Expired",
-    pending: "Waiting", accepted: "Accepted", declined: "Declined", cancelled: "Cancelled",
+    pending: "Waiting", accepted: "Reserved for you", declined: "Not picked", cancelled: "Cancelled",
+    gone: "Gone to someone else",
     approved: "Member", suspended: "Suspended", admin: "Admin"
   };
   function statusPill(status) {
@@ -116,46 +117,73 @@
     var chips = $("#chips");
     var meta = $("#feed-meta");
     var filter = "all";
-    var items = [];
 
     var options = [["all", "All"], ["free", "Free"], ["paid", "Paid"]].concat(Dumpy.data.CATEGORIES);
     chips.innerHTML = options.map(function (c) {
       return '<button type="button" class="chip" aria-pressed="' + (c[0] === "all") + '" data-filter="' + esc(c[0]) + '">' + esc(c[1]) + "</button>";
     }).join("");
 
-    function draw() {
-      var q = search.value.trim().toLowerCase();
-      var shown = items.filter(function (l) {
-        if (q && l.title.toLowerCase().indexOf(q) === -1) return false;
-        if (filter === "free") return l.price_inr === 0;
-        if (filter === "paid") return l.price_inr > 0;
-        if (filter !== "all") return l.category === filter;
-        return true;
-      });
-      meta.textContent = plural(shown.length, "item", "items") + " in " + state.society.society_name;
-      grid.innerHTML = shown.length
-        ? shown.map(itemCard).join("")
-        : '<li class="empty" style="grid-column:1/-1"><p>' + (items.length ? "Nothing matches." : "Nothing here yet. Be the first to post something.") +
+    var more = $("#load-more");
+    var wanted = 0; // bumps on every new search or filter, so late answers are ignored
+    var shown = 0;
+
+    // Load the first page (fresh) or the next one (append).
+    async function load(append) {
+      var ticket = append ? wanted : ++wanted;
+      var q = search.value.trim();
+      if (!append) { shown = 0; meta.textContent = "Loading items…"; }
+      more.disabled = true;
+      more.textContent = "Loading…";
+      var page;
+      try {
+        page = await Dumpy.data.feed(state.society.society_id, { filter: filter, q: q, offset: shown });
+      } catch (err) {
+        if (ticket !== wanted) return;
+        more.disabled = false;
+        more.textContent = "Load more";
+        meta.textContent = problem(err);
+        return;
+      }
+      if (ticket !== wanted) return;
+      more.disabled = false;
+      more.textContent = "Load more";
+      var html = page.items.map(function (l, i) { return itemCard(l, shown + i); }).join("");
+      shown += page.items.length;
+      if (append) grid.insertAdjacentHTML("beforeend", html);
+      else if (shown) grid.innerHTML = html;
+      else {
+        var filtered = q || filter !== "all";
+        grid.innerHTML = '<li class="empty" style="grid-column:1/-1"><p>' +
+          (filtered ? "Nothing matches. Try another word or filter." : "Nothing here yet. Be the first to post something.") +
           '</p><a class="btn btn--primary" href="pages/post.html">Post an item</a></li>';
+      }
+      more.hidden = !page.more;
+      meta.textContent = shown
+        ? (page.more ? "Newest " + shown + " items" : plural(shown, "item", "items")) + (q ? " matching “" + q + "”" : "") + " in " + state.society.society_name
+        : "";
     }
 
     chips.addEventListener("click", function (e) {
       var b = e.target.closest(".chip");
-      if (!b) return;
+      if (!b || b.dataset.filter === filter) return;
       filter = b.dataset.filter;
       chips.querySelectorAll(".chip").forEach(function (c) { c.setAttribute("aria-pressed", String(c === b)); });
-      draw();
+      load(false);
     });
-    search.addEventListener("input", draw);
-    $("#search-form").addEventListener("submit", function (e) { e.preventDefault(); search.blur(); });
+    var typing = null;
+    search.addEventListener("input", function () {
+      clearTimeout(typing);
+      typing = setTimeout(function () { load(false); }, 300);
+    });
+    $("#search-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearTimeout(typing);
+      search.blur();
+      load(false);
+    });
+    more.addEventListener("click", function () { load(true); });
 
-    meta.textContent = "Loading items…";
-    try {
-      items = await Dumpy.data.feed(state.society.society_id);
-      draw();
-    } catch (err) {
-      meta.textContent = problem(err);
-    }
+    await load(false);
   }
 
   /* ---------- Item page ---------- */
@@ -231,22 +259,157 @@
 
     var btn = $("#want-btn");
     $("#action-price").textContent = priceText(l.price_inr);
+    var head = main.querySelector(".item-head");
+    var ownerSection = main.querySelector('[aria-labelledby="owner-h"]');
+
     if (l.owner_id === state.user.id) {
-      // Owners edit their item from here; others' buttons wait for stage 6.
-      if (l.status !== "available") main.querySelector(".item-head").insertAdjacentHTML("beforeend", statusPill(l.status));
+      if (l.status !== "available") head.insertAdjacentHTML("beforeend", statusPill(l.status));
       if (l.status === "hidden") { btn.textContent = "Hidden by your admin"; btn.disabled = true; return; }
+
+      if (l.status === "reserved" || l.status === "done") {
+        var c = await Dumpy.data.contact(l.id).catch(function () { return null; });
+        ownerSection.outerHTML = contactCard(c, l, true);
+        if (l.status === "done") { btn.textContent = "Handed over"; btn.disabled = true; return; }
+        btn.textContent = "Mark handed over";
+        btn.dataset.act = "handed";
+        main.querySelector(".contact").insertAdjacentHTML("beforeend",
+          '<button type="button" class="btn btn--danger btn--block" data-act="cancel">Cancel reservation</button>');
+        var act = async function (e) {
+          var b = e.currentTarget;
+          if (await ownerAct(b.dataset.act, l, c && c.display_name, b)) location.reload();
+        };
+        btn.addEventListener("click", act);
+        main.querySelector('.contact [data-act="cancel"]').addEventListener("click", act);
+        return;
+      }
+
+      // Available (or withdrawn): edit it here; pick a requester in My items.
       var edit = document.createElement("a");
       edit.className = btn.className;
       edit.id = "edit-btn";
       edit.href = "post.html?id=" + encodeURIComponent(l.id);
       edit.textContent = "Edit item";
       btn.replaceWith(edit);
+      if (l.status === "available") {
+        var waiting = (await Dumpy.data.requestsOn(l.id).catch(function () { return []; }))
+          .filter(function (r) { return r.status === "pending"; }).length;
+        if (waiting) {
+          head.insertAdjacentHTML("afterend", '<a class="notice notice--link" href="my-items.html">' + ICON_INFO +
+            "<span>" + plural(waiting, "neighbour has", "neighbours have") + " asked for this. Choose who gets it in My items.</span></a>");
+        }
+      }
       return;
     }
-    // Asking for items goes live in stage 6.
-    if (l.status !== "available") btn.textContent = l.status === "reserved" ? "Reserved for someone" : "No longer available";
-    else btn.textContent = "Requests open soon";
-    btn.disabled = true;
+
+    // Someone else's item.
+    var mine = await Dumpy.data.myRequest(l.id, state.user.id).catch(function () { return null; });
+    var accepted = mine && mine.status === "accepted";
+    if (accepted && (l.status === "reserved" || l.status === "done")) {
+      head.insertAdjacentHTML("beforeend", statusPill(l.status === "done" ? "done" : "accepted"));
+      var oc = await Dumpy.data.contact(l.id).catch(function () { return null; });
+      ownerSection.outerHTML = contactCard(oc, l, false);
+      btn.textContent = l.status === "done" ? "Handed over to you" : "Reserved for you";
+      btn.disabled = true;
+      return;
+    }
+    if (l.status === "reserved") { btn.textContent = "Reserved for someone else"; btn.disabled = true; return; }
+    if (l.status !== "available") { btn.textContent = "No longer available"; btn.disabled = true; return; }
+    if (mine) {
+      if (mine.status === "pending") $("#sent-note").hidden = false;
+      btn.textContent = mine.status === "pending" ? "Request sent"
+        : mine.status === "cancelled" ? "Your reservation was cancelled" : "The owner picked someone else";
+      btn.disabled = true;
+      return;
+    }
+
+    // "I want this": a short optional message, then the request.
+    var sheet = $("#request-sheet");
+    var form = $("#request-form");
+    var err = $("#request-error");
+    btn.addEventListener("click", function () {
+      err.hidden = true;
+      if (sheet.showModal) sheet.showModal(); else sheet.setAttribute("open", "");
+      $("#request-msg").focus();
+    });
+    $("#sheet-cancel").addEventListener("click", function () { sheet.close(); });
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      err.hidden = true;
+      var send = form.querySelector("button[type=submit]");
+      setBusy(send, true, "Sending…");
+      try {
+        await Dumpy.data.requestItem(l, state.user.id, $("#request-msg").value.trim());
+      } catch (ex) {
+        setBusy(send, false);
+        err.querySelector("span").textContent = problem(ex);
+        err.hidden = false;
+        return;
+      }
+      setBusy(send, false);
+      sheet.close();
+      btn.textContent = "Request sent";
+      btn.disabled = true;
+      $("#sent-note").hidden = false;
+    });
+  }
+
+  /* ---------- Requests and handover (shared by the item page and My items) ---------- */
+
+  // Indian mobile number for a wa.me link: digits only, with the 91 country code.
+  function waNumber(phone) {
+    var d = String(phone || "").replace(/\D/g, "");
+    if (d.length === 11 && d.charAt(0) === "0") d = d.slice(1);
+    if (d.length === 10) d = "91" + d;
+    return d.length >= 11 ? d : null;
+  }
+
+  // The matched pair's contact details. c comes from get_contact (null when
+  // the database gave nothing back).
+  function contactCard(c, l, ownerView) {
+    var title = ownerView ? (l.status === "done" ? "Handed over to" : "Reserved for") : "Contact the owner";
+    var hid = "contact-h-" + esc(l.id);
+    if (!c) {
+      return '<section class="section stack-sm contact" aria-labelledby="' + hid + '"><h2 id="' + hid + '">' + title + "</h2>" +
+        '<p class="muted">Contact details could not be loaded. Reload the page to try again.</p></section>';
+    }
+    var where = [tower(c.tower), c.flat ? "Flat " + c.flat : ""].filter(Boolean).join(" · ");
+    var wa = waNumber(c.phone);
+    var text = "Hi " + c.display_name + ", this is about “" + l.title + "” on Dumpy.";
+    var buttons = wa
+      ? '<div class="btn-row">' +
+          '<a class="btn btn--primary" href="https://wa.me/' + wa + "?text=" + encodeURIComponent(text) + '" target="_blank" rel="noopener">' + ICON_CHAT + "WhatsApp</a>" +
+          '<a class="btn btn--outline" href="tel:+' + wa + '">' + ICON_PHONE + "Call</a></div>"
+      : '<p class="small muted">' + esc(c.display_name) + " has not added a phone number. " +
+          (c.flat ? "Knock at flat " + esc(c.flat) + "." : "Ask your society admin how to reach them.") + "</p>";
+    var hint = ownerView
+      ? (l.status === "done" ? "" : "Agree a time with " + esc(c.display_name) + " to hand it over. Once it's done, tap Mark handed over.")
+      : (l.status === "done" ? "" : "Agree a time with " + esc(c.display_name) + " to pick it up.");
+    return '<section class="section stack-sm contact" aria-labelledby="' + hid + '"><h2 id="' + hid + '">' + title + "</h2>" +
+      '<div class="person"><span class="avatar" aria-hidden="true">' + initial(c.display_name) + "</span>" +
+      '<div><p class="person__name">' + esc(c.display_name) + '</p><p class="person__meta">' + esc(where) + "</p></div></div>" +
+      buttons + (hint ? '<p class="small muted">' + hint + "</p>" : "") + "</section>";
+  }
+
+  // Accept, Mark handed over, Cancel reservation. Asks first; returns true when done.
+  async function ownerAct(act, l, name, btn) {
+    var who = name || "this neighbour";
+    var ask = {
+      accept: "Give “" + l.title + "” to " + who + "? Everyone else who asked will see it's gone.",
+      handed: "Mark “" + l.title + "” as handed over to " + who + "? This closes the item.",
+      cancel: "Cancel " + who + "'s reservation? “" + l.title + "” goes back up, and the others who asked get their turn again."
+    }[act];
+    if (!confirm(ask)) return false;
+    setBusy(btn, true, { accept: "Accepting…", handed: "Saving…", cancel: "Cancelling…" }[act]);
+    try {
+      if (act === "accept") await Dumpy.data.acceptRequest(btn.dataset.request);
+      else if (act === "handed") await Dumpy.data.markHandedOver(l.id);
+      else await Dumpy.data.cancelReservation(l.id);
+    } catch (err) {
+      setBusy(btn, false);
+      alert(problem(err));
+      return false;
+    }
+    return true;
   }
 
   /* ---------- My items ---------- */
@@ -266,23 +429,32 @@
     }
 
     list.innerHTML = d.listings.length ? d.listings.map(function (l) {
-      var reqs = d.incoming.filter(function (r) { return r.listing_id === l.id; });
-      var reqHTML = "";
-      if (reqs.length && l.status !== "done") {
-        reqHTML = '<div class="requests"><p class="requests__title">' + plural(reqs.length, "request", "requests") + "</p>" +
-          reqs.map(function (r) {
+      var waiting = d.incoming.filter(function (r) { return r.listing_id === l.id && r.status === "pending"; });
+      var extra = "";
+      if (l.status === "available" && waiting.length) {
+        extra = '<div class="requests"><p class="requests__title">' + plural(waiting.length, "person wants", "people want") + " this</p>" +
+          waiting.map(function (r) {
             return '<div class="request"><div class="person"><span class="avatar" aria-hidden="true">' + initial(r.requester.display_name) + "</span>" +
               '<div class="row-card__main"><p class="person__name">' + esc(r.requester.display_name) +
               ' <span class="person__meta">· ' + esc(tower(r.requester.tower)) + " · " + timeAgo(r.created_at) + "</span></p>" +
               (r.message ? '<p class="request__msg">“' + esc(r.message) + "”</p>" : "") +
-              statusPill(r.status) + "</div></div></div>";
+              '<div class="btn-row"><button type="button" class="btn btn--primary btn--sm" data-act="accept" data-request="' + esc(r.id) +
+              '" data-name="' + esc(r.requester.display_name) + '" aria-label="Accept ' + esc(r.requester.display_name) + '">Accept</button></div>' +
+              "</div></div></div>";
           }).join("") + "</div>";
+      } else if (l.status === "reserved" || l.status === "done") {
+        extra = '<div class="requests">' + contactCard(l.contact, l, true) +
+          (l.status === "reserved"
+            ? '<div class="btn-row"><button type="button" class="btn btn--primary btn--sm" data-act="handed">Mark handed over</button>' +
+              '<button type="button" class="btn btn--danger btn--sm" data-act="cancel">Cancel reservation</button></div>'
+            : "") + "</div>";
       }
-      return '<li class="row-card" data-listing="' + esc(l.id) + '" data-title="' + esc(l.title) + '"><div class="row-card__top">' +
+      return '<li class="row-card" data-listing="' + esc(l.id) + '" data-title="' + esc(l.title) + '"' +
+        (l.contact ? ' data-taker="' + esc(l.contact.display_name) + '"' : "") + '><div class="row-card__top">' +
         '<a class="row-card__thumb" href="item.html?id=' + esc(l.id) + '" tabindex="-1" aria-hidden="true">' + photo(l.photos[0], "") + "</a>" +
         '<div class="row-card__main"><a class="row-card__title" href="item.html?id=' + esc(l.id) + '"><span>' + esc(l.title) + "</span></a>" +
         '<p class="row-card__meta">' + priceText(l.price_inr) + " · posted " + timeAgo(l.created_at) + "</p>" +
-        statusPill(l.status) + "</div></div>" + ownerActions(l) + reqHTML + "</li>";
+        statusPill(l.status) + "</div></div>" + ownerActions(l) + extra + "</li>";
     }).join("") : '<li class="empty"><p>You have not posted anything yet.</p><a class="btn btn--primary" href="post.html">Post an item</a></li>';
 
     if (!again) list.addEventListener("click", async function (e) {
@@ -290,7 +462,13 @@
       if (!b || b.disabled) return;
       var li = b.closest("[data-listing]");
       var id = li.dataset.listing;
-      var withdrawing = b.dataset.act === "withdraw";
+      var act = b.dataset.act;
+      if (act === "accept" || act === "handed" || act === "cancel") {
+        var l = { id: id, title: li.dataset.title };
+        if (await ownerAct(act, l, act === "accept" ? b.dataset.name : li.dataset.taker, b)) initMyItemsAgain(state);
+        return;
+      }
+      var withdrawing = act === "withdraw";
       if (withdrawing && !confirm("Withdraw “" + li.dataset.title + "”? Neighbours will stop seeing it. You can post it again later.")) return;
       li.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
       setBusy(b, true, withdrawing ? "Withdrawing…" : "Posting…");
@@ -305,19 +483,28 @@
       initMyItemsAgain(state);
     });
 
-    var asked = d.outgoing.filter(function (r) { return r.listing; });
-    mineReq.innerHTML = asked.length ? asked.map(function (r) {
+    mineReq.innerHTML = d.outgoing.length ? d.outgoing.map(function (r) {
       var l = r.listing;
+      if (!l) {
+        // Withdrawn, expired or hidden: the database no longer shows it to you.
+        return '<li class="row-card"><div class="row-card__top"><span class="row-card__thumb">' + photo(null, "") + "</span>" +
+          '<div class="row-card__main"><p class="row-card__title"><span>An item that is no longer listed</span></p>' +
+          '<p class="row-card__meta">Asked ' + timeAgo(r.created_at) + "</p>" + statusPill(r.status === "pending" ? "withdrawn" : r.status) + "</div></div></li>";
+      }
+      var gone = (l.status === "reserved" || l.status === "done") && r.status !== "accepted";
+      var pill = gone ? "gone" : r.status === "accepted" && l.status === "done" ? "done" : r.status;
+      var extra = r.status === "accepted" && l.contact !== undefined ? '<div class="requests">' + contactCard(l.contact, l, false) + "</div>" : "";
       return '<li class="row-card"><div class="row-card__top">' +
         '<a class="row-card__thumb" href="item.html?id=' + esc(l.id) + '" tabindex="-1" aria-hidden="true">' + photo(l.photos[0], "") + "</a>" +
         '<div class="row-card__main"><a class="row-card__title" href="item.html?id=' + esc(l.id) + '"><span>' + esc(l.title) + "</span></a>" +
         '<p class="row-card__meta">' + priceText(l.price_inr) + " · " + esc(l.owner.display_name) + (l.owner.tower ? ", " + esc(tower(l.owner.tower)) : "") + "</p>" +
-        statusPill(r.status) + "</div></div></li>";
+        statusPill(pill) + "</div></div>" + extra + "</li>";
     }).join("") : '<li class="empty"><p>You have not asked for anything yet.</p><a class="btn btn--primary" href="../index.html">Browse items</a></li>';
   }
 
   // Edit and Withdraw for available items; Edit and Post again for withdrawn
-  // ones. Reserved and handed-over items get their actions in stage 6.
+  // ones. Reserved and handed-over items get Mark handed over and Cancel
+  // reservation next to the taker's details instead.
   function ownerActions(l) {
     var edit = '<a class="btn btn--outline btn--sm" href="post.html?id=' + esc(l.id) + '">Edit</a>';
     if (l.status === "available") {
@@ -614,6 +801,8 @@
   }
 
   var ICON_INFO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
+  var ICON_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3 21l2-5.5A8.5 8.5 0 1 1 21 11.5z"/></svg>';
+  var ICON_PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
   var ICON_BOX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/></svg>';
 
   var pages = {
