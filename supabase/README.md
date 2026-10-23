@@ -22,6 +22,7 @@ migrations/            Schema, functions and rules, applied oldest first
 seed.sql               Demo Society, two demo people, five demo items
 snippets/              One-off SQL for the dashboard (create-society.sql, remove-demo-data.sql)
 tests/isolation_test.sql   Proves the rules (runs in one transaction, rolled back)
+tests/payments_test.sql    Stage 8 payment rules, same way
 tests/local/           Runs everything on plain Postgres without Docker
 config.toml            Local Supabase CLI settings (not used by the live project)
 ```
@@ -39,7 +40,7 @@ societies.
 | `profiles` | `display_name`, `tower`, and private `flat`, `phone`, `upi_id` | name and tower: neighbours in an approved society, and admins of a society you asked to join | yourself |
 | `listings` | title, description, category, condition, `price_inr` (0 = Free), status, `expires_at` | approved members: available, reserved, done; also the owner and admins: withdrawn, expired, hidden | owner (cannot hide, cannot edit a hidden item); admins |
 | `listing_photos` | `storage_path`, `position` | anyone who can see the listing | listing owner |
-| `requests` | requester, message, status | requester; listing owner | requester: edit message or cancel while pending; owner: decline |
+| `requests` | requester, message, status, `paid_at` (stage 8: owner marked it paid) | requester; listing owner | requester: edit message or cancel while pending; owner: decline |
 
 Nothing is ever deleted from the website except photos and memberships.
 Listings are withdrawn, requests are cancelled or declined.
@@ -83,6 +84,7 @@ permission at all**, not even for the person they belong to. So:
 | `mark_handed_over(p_listing_id)` | Owner only: `reserved` to `done` (stage 6) |
 | `cancel_reservation(p_listing_id)` | Owner only: `reserved` to `available`; the accepted request becomes `cancelled` and the declined ones `pending` again (stage 6) |
 | `get_contact(p_listing_id)` | The other person's name, tower, flat and phone, for the owner and the accepted requester of a reserved or handed-over item; nobody else gets a row. `upi_id` is filled only when the other person is the owner of a paid item (stage 8 uses it) |
+| `set_paid(p_listing_id, p_paid)` | Owner only, paid item that is reserved or handed over: marks the accepted request paid (`requests.paid_at`) or not. Returns the new `paid_at`. Nothing else about a payment is stored (stage 8) |
 
 Asking for an item is a plain insert into `requests` (one per person per
 item; only available items posted by someone else). Moving an item into or
