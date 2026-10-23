@@ -14,10 +14,11 @@ database call the `send-email` Edge Function, which sends one plain email with
 a link back to the item and marks the row `sent` (or `failed`, with the
 reason). A row can only be sent once.
 
-## Part A: database and function (Claude can do this for you)
+## Part A: database and function (done by Claude on 2026-10-23)
 
 These need the Supabase connector, so Claude does them once you say go ahead
-in the project thread:
+in the project thread. On the live project they are already done; this list
+is for a fresh project:
 
 1. Apply the migration `supabase/migrations/*_notifications.sql`.
 2. Deploy the Edge Function `supabase/functions/send-email` with
@@ -104,7 +105,8 @@ limit 20;
 ```
 
 `pending` for long means the function wasn't reached (check Part A step 3);
-`failed` shows the email provider's reason.
+`failed` shows the email provider's reason. Until Part B is done, every
+email fails with "No email provider set"; those are not sent again later.
 
 ## Turning emails off for everyone
 

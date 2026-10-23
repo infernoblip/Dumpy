@@ -26,11 +26,9 @@
 -- Changes to other stages' tables:
 --   profiles  (stage 2): new column email_notifications, default on.
 --   requests  (stage 2): new trigger requests_notify (after insert or status change).
---   deliveries (stage 7): new trigger deliveries_notify, added here only if the
---             table already exists. If stage 7 lands later, its migration adds:
---               create trigger deliveries_notify
---               after insert or update of status on public.deliveries
---               for each row execute function public.notify_delivery_change();
+--   deliveries (stage 7): new trigger deliveries_notify. Whichever of the two
+--             migrations runs second creates it (stage 7's checks for this
+--             function, this one checks for the table).
 
 -- ------------------------------------------------------ profile switch
 alter table public.profiles

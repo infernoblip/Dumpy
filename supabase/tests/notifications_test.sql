@@ -197,6 +197,9 @@ begin
       id uuid primary key default gen_random_uuid(),
       listing_id uuid not null,
       society_id uuid not null,
+      mode text not null,
+      slot_start timestamptz not null,
+      slot_end timestamptz not null,
       helper_id uuid,
       status text not null default 'open'
     );
@@ -208,9 +211,10 @@ end $$;
 
 -- Insert directly as the table owner: this tests the email trigger, not
 -- stage 7's rules about who may create or claim a delivery.
-insert into public.deliveries (id, listing_id, society_id, status)
+insert into public.deliveries (id, listing_id, society_id, mode, slot_start, slot_end, status)
 values ('7e590000-0000-4000-8000-00000000d001', '7e590000-0000-4000-8000-0000000c0001',
-        '7e590000-0000-4000-8000-00000000aaaa', 'open');
+        '7e590000-0000-4000-8000-00000000aaaa', 'helper',
+        date_trunc('hour', now()) + interval '1 day', date_trunc('hour', now()) + interval '1 day 2 hours', 'open');
 select dumpy_ntests.ok(dumpy_ntests.total() = 6, 'An open delivery job sends no email');
 
 update public.deliveries set status = 'claimed', helper_id = '7e590000-0000-4000-8000-000000000006'
