@@ -180,7 +180,7 @@ begin
   -- Stage 7's migration adds the same trigger if it runs after this one.
   if to_regclass('public.deliveries') is not null
      and not exists (select 1 from pg_trigger
-                     where tgname = 'deliveries_notify' and tgrelid = 'public.deliveries'::regclass) then
+                     where tgname = 'deliveries_notify' and tgrelid = to_regclass('public.deliveries')) then
     execute 'create trigger deliveries_notify
              after insert or update of status on public.deliveries
              for each row execute function public.notify_delivery_change()';
