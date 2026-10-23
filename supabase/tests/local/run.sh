@@ -36,5 +36,7 @@ echo "== isolation tests"
 psql_run -At -f "$root/tests/isolation_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
 echo "== payment tests"
 psql_run -At -f "$root/tests/payments_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
+echo "== notification tests"
+psql_run -At -f "$root/tests/notifications_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
 echo "== concurrent accept test"
 PSQL_ARGS="-h /tmp -p $port -U postgres -d postgres" bash "$here/concurrent_accept.sh"

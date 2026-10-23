@@ -922,6 +922,11 @@ body[data-auth="loading"]::after {
 .photo-none { display: grid; place-items: center; width: 100%; height: 100%; color: var(--muted); }
 .photo-none svg { width: 40%; max-width: 96px; height: auto; opacity: 0.6; }
 
+/* Share buttons on the item page and the email switch (stage 9). */
+.share .btn svg { width: 20px; height: 20px; flex: none; }
+.share .btn-row > .btn { flex: 1 1 140px; }
+.break { overflow-wrap: anywhere; }
+
 /* ---------- Utilities ---------- */
 .muted { color: var(--muted); }
 .small { font-size: 0.875rem; }
