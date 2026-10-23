@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the stage 4 browser test on this computer, with no Supabase account:
+# Runs the browser tests on this computer, with no Supabase account:
 #   * a throwaway Postgres with the migrations (as in supabase/tests/local)
 #   * PostgREST in front of it, standing in for Supabase's database API
 #   * the site served by python3 -m http.server
@@ -9,7 +9,8 @@
 # Needs: Postgres 15+ binaries, Node.js 18+, python3, curl, and Playwright with
 # Chromium (npm i -g playwright && npx playwright install chromium).
 # Optional: PLAYWRIGHT_MODULE (path to the playwright package), CHROMIUM_PATH.
-#   bash tests/browser/run.sh
+#   bash tests/browser/run.sh            (all tests: stage 4, then stage 5)
+#   bash tests/browser/run.sh post.js    (just one)
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -62,5 +63,9 @@ for i in $(seq 1 20); do
   sleep 1
 done
 
-echo "== browser test"
-WORK_DIR="$work" node "$here/e2e.js"
+tests=("$@")
+[ ${#tests[@]} -eq 0 ] && tests=(e2e.js post.js)
+for t in "${tests[@]}"; do
+  echo "== browser test: $t"
+  WORK_DIR="$work" PG_PORT="$pgport" node "$here/$t"
+done

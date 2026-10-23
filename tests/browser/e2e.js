@@ -2,118 +2,14 @@
 // a local Postgres + PostgREST that stands in for Supabase. Run it with
 // tests/browser/run.sh (see the README next to this file).
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const crypto = require('crypto');
-const fs = require('fs');
 const path = require('path');
+const { S, SITE, USERS, PHONE, check, failed, wire, magicLink, settle, noSideScroll, smallTargets, shooter, otpCalls } = require('./lib');
 
-const S = __dirname;
-const WORK = process.env.WORK_DIR;               // set by run.sh
-const SITE = 'http://localhost:8000';
-const SUPA = 'https://sfezmqsdzwrjdcqpyhln.supabase.co';
-const SECRET = 'local-test-secret-local-test-secret-0123'; // only for the throwaway local PostgREST
-const SHOTS = path.join(S, '../../docs/screenshots/stage-4');
-fs.mkdirSync(SHOTS, { recursive: true });
-const UMD = fs.readFileSync(path.join(WORK, 'package/dist/umd/supabase.js'));
-
-const USERS = {
-  admin: { id: 'aaaaaaaa-0000-4000-8000-000000000001', email: 'demo.admin@example.com' },
-  newbie: { id: 'aaaaaaaa-0000-4000-8000-000000000002', email: 'new.neighbour@example.com' },
-};
-const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-function jwt(u) {
-  const now = Math.floor(Date.now() / 1000);
-  const h = b64({ alg: 'HS256', typ: 'JWT' });
-  const p = b64({ sub: u.id, email: u.email, role: 'authenticated', aud: 'authenticated', iat: now, exp: now + 3600 });
-  const sig = crypto.createHmac('sha256', SECRET).update(h + '.' + p).digest('base64url');
-  return `${h}.${p}.${sig}`;
-}
-function decode(token) { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()); }
-
-const otpCalls = [];
-let failures = 0;
-function check(cond, label) {
-  console.log((cond ? 'ok   ' : 'FAIL ') + label);
-  if (!cond) failures++;
-}
-
-async function wire(context) {
-  await context.route('https://cdn.jsdelivr.net/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/javascript', body: UMD, headers: { 'access-control-allow-origin': '*' } }));
-  await context.route(SUPA + '/**', async (route) => {
-    const req = route.request();
-    const u = new URL(req.url());
-    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*' };
-    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-    const auth = (req.headers()['authorization'] || '').replace(/^Bearer /, '');
-    const isJwt = auth.split('.').length === 3;
-
-    if (u.pathname.startsWith('/rest/v1/')) {
-      const headers = {};
-      for (const [k, v] of Object.entries(req.headers())) {
-        if (['content-type', 'prefer', 'accept', 'range', 'content-profile', 'accept-profile'].includes(k)) headers[k] = v;
-      }
-      if (isJwt) headers['authorization'] = 'Bearer ' + auth;
-      const res = await fetch('http://localhost:3000' + u.pathname.slice(8) + u.search, {
-        method: req.method(), headers, body: ['GET', 'HEAD'].includes(req.method()) ? undefined : req.postDataBuffer(),
-      });
-      const rh = Object.fromEntries(res.headers.entries());
-      delete rh['content-encoding']; delete rh['content-length'];
-      return route.fulfill({ status: res.status, headers: { ...rh, ...cors }, body: Buffer.from(await res.arrayBuffer()) });
-    }
-    if (u.pathname === '/auth/v1/otp') {
-      otpCalls.push({ body: req.postDataJSON(), redirect: u.searchParams.get('redirect_to') });
-      return route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: '{}' });
-    }
-    if (u.pathname === '/auth/v1/user') {
-      if (!isJwt) return route.fulfill({ status: 401, headers: cors, contentType: 'application/json', body: '{"msg":"no"}' });
-      const c = decode(auth);
-      return route.fulfill({ status: 200, headers: cors, contentType: 'application/json',
-        body: JSON.stringify({ id: c.sub, aud: 'authenticated', role: 'authenticated', email: c.email, app_metadata: { provider: 'email' }, user_metadata: {}, created_at: new Date().toISOString() }) });
-    }
-    if (u.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
-    if (u.pathname === '/storage/v1/object/sign/listing-photos' && req.method() === 'POST') {
-      const { paths } = req.postDataJSON();
-      return route.fulfill({ status: 200, headers: cors, contentType: 'application/json',
-        body: JSON.stringify(paths.map((p) => ({ path: p, error: null, signedURL: '/object/sign/listing-photos/' + p + '?token=t' }))) });
-    }
-    if (u.pathname.startsWith('/storage/v1/object/sign/listing-photos/')) {
-      const file = path.basename(u.pathname);
-      return route.fulfill({ status: 200, headers: cors, contentType: 'image/svg+xml', body: fs.readFileSync(path.join(S, 'photos', file)) });
-    }
-    console.log('unhandled', req.method(), u.pathname);
-    return route.fulfill({ status: 404, headers: cors, body: '' });
-  });
-}
-
-function magicLink(u) {
-  const t = jwt(u);
-  const exp = Math.floor(Date.now() / 1000) + 3600;
-  return `${SITE}/#access_token=${t}&expires_at=${exp}&expires_in=3600&refresh_token=test-refresh&token_type=bearer&type=magiclink`;
-}
-
-async function settle(page) {
-  await page.waitForFunction(() => document.body.dataset.auth === 'ready', null, { timeout: 10000 });
-  await page.waitForLoadState('networkidle');
-}
-async function noSideScroll(page, label) {
-  const w = await page.evaluate(() => document.documentElement.scrollWidth);
-  check(w <= 360, `${label}: no sideways scroll (width ${w})`);
-}
-async function smallTargets(page, label) {
-  const bad = await page.evaluate(() => [...document.querySelectorAll('a, button, input, select, textarea')]
-    .filter((el) => el.offsetParent !== null && !el.closest('.visually-hidden, .skip-link') && !el.matches('.chip'))
-    .filter((el) => !(el.type === 'checkbox' || el.type === 'radio' || el.type === 'file'))
-    .map((el) => { const r = el.getBoundingClientRect(); return { t: (el.textContent || el.id || el.tagName).trim().slice(0, 30), w: Math.round(r.width), h: Math.round(r.height), inline: getComputedStyle(el).display === 'inline' }; })
-    .filter((r) => !r.inline && (r.h < 44 || r.w < 44)));
-  check(bad.length === 0, `${label}: tap targets at least 44 px` + (bad.length ? ' ' + JSON.stringify(bad) : ''));
-}
-async function shot(page, name, full = true) {
-  await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: full });
-}
+const shot = shooter(path.join(S, '../../docs/screenshots/stage-4'));
 
 (async () => {
   const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
-  const opts = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+  const opts = PHONE;
   const A = await browser.newContext(opts);           // the new neighbour
   const B = await browser.newContext(opts);           // the admin, in a second browser profile
   await wire(A); await wire(B);
@@ -121,7 +17,7 @@ async function shot(page, name, full = true) {
   const errors = [];
   a.on('pageerror', (e) => errors.push(e.message));
   a.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
-  a.on('response', (r) => { if (r.status() >= 400) console.log('     (expected?) HTTP', r.status(), r.request().method(), r.url().replace(SUPA, '').slice(0, 90)); });
+  a.on('response', (r) => { if (r.status() >= 400) console.log('     (expected?) HTTP', r.status(), r.request().method(), r.url().replace(/^https:\/\/[^/]+/, '').slice(0, 90)); });
 
   // 1. Signed out: public landing; private pages bounce to it.
   await a.goto(SITE + '/');
@@ -285,6 +181,6 @@ async function shot(page, name, full = true) {
 
   check(errors.length === 0, 'No script errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await browser.close();
-  console.log(failures ? `\n${failures} FAILED` : '\nAll stage 4 browser checks passed');
-  process.exit(failures ? 1 : 0);
+  console.log(failed() ? `\n${failed()} FAILED` : '\nAll stage 4 browser checks passed');
+  process.exit(failed() ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
