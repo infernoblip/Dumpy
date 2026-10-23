@@ -64,7 +64,7 @@ for i in $(seq 1 20); do
 done
 
 tests=("$@")
-[ ${#tests[@]} -eq 0 ] && tests=(e2e.js post.js request.js)
+[ ${#tests[@]} -eq 0 ] && tests=(e2e.js post.js request.js notify.js)
 for t in "${tests[@]}"; do
   echo "== browser test: $t"
   WORK_DIR="$work" PG_PORT="$pgport" node "$here/$t"

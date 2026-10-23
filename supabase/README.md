@@ -22,6 +22,8 @@ migrations/            Schema, functions and rules, applied oldest first
 seed.sql               Demo Society, two demo people, five demo items
 snippets/              One-off SQL for the dashboard (create-society.sql, remove-demo-data.sql)
 tests/isolation_test.sql   Proves the rules (runs in one transaction, rolled back)
+tests/notifications_test.sql   Proves who gets which email (stage 9, rolled back)
+functions/send-email/  Edge Function that sends notification emails (stage 9)
 tests/local/           Runs everything on plain Postgres without Docker
 config.toml            Local Supabase CLI settings (not used by the live project)
 ```
@@ -36,10 +38,11 @@ societies.
 |---|---|---|---|
 | `societies` | name, `invite_code` | approved members | admins: name, invite code |
 | `memberships` | person, society, `role` member/admin, `status` pending/approved/suspended | yourself; admins of that society | admins (not their own row); you can leave unless suspended |
-| `profiles` | `display_name`, `tower`, and private `flat`, `phone`, `upi_id` | name and tower: neighbours in an approved society, and admins of a society you asked to join | yourself |
+| `profiles` | `display_name`, `tower`, and private `flat`, `phone`, `upi_id`, `email_notifications` | name and tower: neighbours in an approved society, and admins of a society you asked to join | yourself |
 | `listings` | title, description, category, condition, `price_inr` (0 = Free), status, `expires_at` | approved members: available, reserved, done; also the owner and admins: withdrawn, expired, hidden | owner (cannot hide, cannot edit a hidden item); admins |
 | `listing_photos` | `storage_path`, `position` | anyone who can see the listing | listing owner |
 | `requests` | requester, message, status | requester; listing owner | requester: edit message or cancel while pending; owner: decline |
+| `notifications` | one row per email: recipient, `kind`, item, `status` pending/sending/sent/failed/skipped (stage 9) | nobody on the website | only the database's triggers and the `send-email` function |
 
 Nothing is ever deleted from the website except photos and memberships.
 Listings are withdrawn, requests are cancelled or declined.
@@ -90,6 +93,23 @@ out of `reserved` or `done` is **not** a plain update: a trigger refuses it,
 so the item's status and its accepted request always agree. Use the three
 functions above. Admins can still hide any item.
 
+## Emails (stage 9)
+
+Triggers on `requests` (and on stage 7's `deliveries`) add a row to
+`notifications` for each person who should hear about a change, skipping
+anyone whose `profiles.email_notifications` is false or who is no longer an
+approved member. Each new row calls the `send-email` Edge Function
+(`supabase/functions/send-email`) through `pg_net`, at the address stored in
+the Vault secret `send_email_url`. The function calls `claim_notification(id)`
+(pending to sending, once only) and `finish_notification(id, error)`; both
+are for the service role only. The website just flips
+`profiles.email_notifications` (Profile page). Setup: [docs/stage-9-setup.md](../docs/stage-9-setup.md).
+
+A table that should send emails gets a trigger that calls
+`public.queue_notification(kind, listing_id, recipient_id, actor_id, request_id, delivery_id)`;
+add the new `kind` to the check on `notifications.kind` and to `buildEmail` in
+the function's `handler.js`.
+
 ## Photos
 
 Bucket `listing-photos`, private, 2 MB per file, JPEG/PNG/WebP only.
@@ -112,6 +132,9 @@ Show photos with `createSignedUrl` (the bucket has no public URLs).
 - **Locally with Docker:** `supabase start`, then `supabase db reset` (applies
   migrations and seed), then
   `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/isolation_test.sql`.
+- **Notifications:** `tests/notifications_test.sql` runs the same way
+  (SQL Editor or psql) and is part of `tests/local/run.sh`. The function's own
+  tests: `node tests/functions/send-email.test.mjs` (from the repo root).
 - **Locally without Docker:** `bash supabase/tests/local/run.sh` needs only
   Postgres 15+ installed. It starts a throwaway database, adds a small
   stand-in for Supabase's `auth` and `storage` schemas, then applies the
