@@ -40,6 +40,7 @@ societies.
 | `listings` | title, description, category, condition, `price_inr` (0 = Free), status, `expires_at` | approved members: available, reserved, done; also the owner and admins: withdrawn, expired, hidden | owner (cannot hide, cannot edit a hidden item); admins |
 | `listing_photos` | `storage_path`, `position` | anyone who can see the listing | listing owner |
 | `requests` | requester, message, status | requester; listing owner | requester: edit message or cancel while pending; owner: decline |
+| `reports` | item, reporter, `reason` not_allowed/spam/offensive/other, optional `note`, `status` open/actioned/dismissed | the reporter; admins of that society (never the item's owner) | members: file one report per item on someone else's available or reserved item; admins: close through `resolve_reports` |
 
 Nothing is ever deleted from the website except photos and memberships.
 Listings are withdrawn, requests are cancelled or declined.
@@ -82,7 +83,16 @@ permission at all**, not even for the person they belong to. So:
 | `accept_request(p_request_id)` | Owner only, item must be available: accepts that request, declines the other pending ones, sets the item to `reserved`. Locks the item first, so two accepts at once leave exactly one winner (stage 6) |
 | `mark_handed_over(p_listing_id)` | Owner only: `reserved` to `done` (stage 6) |
 | `cancel_reservation(p_listing_id)` | Owner only: `reserved` to `available`; the accepted request becomes `cancelled` and the declined ones `pending` again (stage 6) |
+| `resolve_reports(p_listing_id, p_hide)` | Admin of the item's society only. `p_hide` true hides the item and marks its open reports `actioned`; false marks them `dismissed` and leaves the item up (stage 10) |
+| `renew_listing(p_listing_id)` | Owner only: an `expired` or `withdrawn` item goes back to `available` for 30 more days, dated by the database clock (stage 10) |
 | `get_contact(p_listing_id)` | The other person's name, tower, flat and phone, for the owner and the accepted requester of a reserved or handed-over item; nobody else gets a row. `upi_id` is filled only when the other person is the owner of a paid item (stage 8 uses it) |
+
+### Moderation and expiry (stage 10)
+
+- Suspending is a plain update of `memberships.status` to `suspended` (and back to `approved`) by an admin. Every rule calls `is_member()`, which only counts approved members, so a suspended person sees nothing straight away.
+- `expires_at` is capped at 30 days from now for anything the website writes.
+- `expire_old_listings()` marks available items `expired` once `expires_at` has passed. pg_cron runs it every hour as job `dumpy-expire-listings`. Only the database itself may call it.
+- `tests/moderation_test.sql` proves these rules; run it like `isolation_test.sql`.
 
 Asking for an item is a plain insert into `requests` (one per person per
 item; only available items posted by someone else). Moving an item into or

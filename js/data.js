@@ -87,6 +87,9 @@
     var q = (opts.q || "").trim();
     // % and _ are wildcards in ilike; a backslash makes them plain characters.
     if (q) query = query.ilike("title", "%" + q.replace(/[\\%_]/g, "\\$&") + "%");
+    // Items past their 30 days leave the feed straight away; the hourly
+    // expiry job then marks them expired (stage 10).
+    query = query.gt("expires_at", new Date().toISOString());
     // Ask for one extra row to learn whether there is another page.
     var rows = check(await query.order("created_at", { ascending: false }).order("id")
       .range(from, from + PAGE));
@@ -220,9 +223,10 @@
 
   function withdraw(id) { return updateListing(id, { status: "withdrawn" }); }
 
-  // Put a withdrawn item back up for another 30 days.
+  // Put a withdrawn or expired item back up for another 30 days. The database
+  // sets the new date from its own clock (stage 10).
   function relist(id) {
-    return updateListing(id, { status: "available", expires_at: new Date(Date.now() + 30 * 864e5).toISOString() });
+    return rpc("renew_listing", { p_listing_id: id });
   }
 
   // A listing's photo rows, in order, each with a signed URL to show it.

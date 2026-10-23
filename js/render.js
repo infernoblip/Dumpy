@@ -302,6 +302,7 @@
     }
 
     // Someone else's item.
+    if (Dumpy.moderation) Dumpy.moderation.reportLink(l, state);
     var mine = await Dumpy.data.myRequest(l.id, state.user.id).catch(function () { return null; });
     var accepted = mine && mine.status === "accepted";
     if (accepted && (l.status === "reserved" || l.status === "done")) {
@@ -471,7 +472,7 @@
       var withdrawing = act === "withdraw";
       if (withdrawing && !confirm("Withdraw “" + li.dataset.title + "”? Neighbours will stop seeing it. You can post it again later.")) return;
       li.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
-      setBusy(b, true, withdrawing ? "Withdrawing…" : "Posting…");
+      setBusy(b, true, withdrawing ? "Withdrawing…" : "Saving…");
       try {
         await (withdrawing ? Dumpy.data.withdraw(id) : Dumpy.data.relist(id));
       } catch (err) {
@@ -503,7 +504,7 @@
   }
 
   // Edit and Withdraw for available items; Edit and Post again for withdrawn
-  // ones. Reserved and handed-over items get Mark handed over and Cancel
+  // ones; Edit and Renew for expired ones. Reserved and handed-over items get Mark handed over and Cancel
   // reservation next to the taker's details instead.
   function ownerActions(l) {
     var edit = '<a class="btn btn--outline btn--sm" href="post.html?id=' + esc(l.id) + '">Edit</a>';
@@ -512,6 +513,10 @@
     }
     if (l.status === "withdrawn") {
       return '<div class="btn-row">' + edit + '<button type="button" class="btn btn--primary btn--sm" data-act="relist">Post again</button></div>';
+    }
+    if (l.status === "expired") {
+      return '<p class="small muted row-card__note">Items come down after 30 days. Renew to show it to neighbours again.</p>' +
+        '<div class="btn-row">' + edit + '<button type="button" class="btn btn--primary btn--sm" data-act="relist">Renew</button></div>';
     }
     if (l.status === "hidden") return '<p class="small muted row-card__note">Your society admin hid this item.</p>';
     return "";
@@ -770,9 +775,34 @@
           '<div class="row-card__main"><p class="person__name">' + esc(m.display_name || "No name yet") +
           (m.user_id === state.user.id ? ' <span class="person__meta">(you)</span>' : "") + "</p>" +
           '<p class="person__meta">' + esc(whereText(m)) + "</p></div>" +
-          statusPill(m.status === "approved" ? (m.role === "admin" ? "admin" : "approved") : m.status) + "</div></li>";
+          statusPill(m.status === "approved" ? (m.role === "admin" ? "admin" : "approved") : m.status) + "</div>" +
+          memberAction(m) + "</li>";
       }).join("");
     }
+
+    // Suspend or Restore anyone but yourself (stage 10). A suspended member
+    // keeps their account but sees nothing until restored.
+    function memberAction(m) {
+      if (m.user_id === state.user.id) return "";
+      var name = ' data-user="' + esc(m.user_id) + '" data-name="' + esc(m.display_name || "this person") + '"';
+      return m.status === "suspended"
+        ? '<div class="btn-row"><button type="button" class="btn btn--outline btn--sm" data-act="restore"' + name + ">Restore</button></div>"
+        : '<div class="btn-row"><button type="button" class="btn btn--danger btn--sm" data-act="suspend"' + name + ">Suspend</button></div>";
+    }
+
+    $("#members").addEventListener("click", async function (e) {
+      var btn = e.target.closest("button[data-act]");
+      if (!btn || btn.disabled) return;
+      var suspend = btn.dataset.act === "suspend";
+      if (suspend && !confirm("Suspend " + btn.dataset.name + "? They will not be able to see or post items until you restore them.")) return;
+      setBusy(btn, true, suspend ? "Suspending…" : "Restoring…");
+      var res = await db().from("memberships").update({ status: suspend ? "suspended" : "approved" })
+        .eq("society_id", sid).eq("user_id", btn.dataset.user).select("user_id");
+      if (res.error || !res.data || !res.data.length) {
+        alert(res.error ? problem(res.error) : "That did not work. Reload the page and try again.");
+      }
+      await load();
+    });
 
     function whereText(m) {
       return [tower(m.tower), m.flat].filter(Boolean).join(", ") || "No flat given";

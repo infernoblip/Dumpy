@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="What can't be given away or sold on Dumpy.">
+  <title>Not allowed · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="not-allowed">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="icon-btn" id="back" href="post.html" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+      <h1 class="app-header__title">Not allowed on Dumpy</h1>
+    </div>
+  </header>
+  <main id="main" class="page stack">
+    <p>Dumpy is for everyday things neighbours can safely pass on. Please don't post:</p>
+    <ul class="rules">
+      <li><strong>Medicines</strong>, including leftover tablets, syrups and injections</li>
+      <li><strong>Alcohol</strong></li>
+      <li><strong>Tobacco</strong>, cigarettes, vapes and gutka</li>
+      <li><strong>Weapons</strong>, including knives sold as weapons, air guns and fireworks</li>
+      <li><strong>Expired food</strong>, or any opened or home-cooked food</li>
+      <li><strong>Anything illegal to sell</strong>, or that isn't yours to give</li>
+    </ul>
+    <div class="notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <p>If you see one of these, open the item and tap <strong>Report this item</strong>. Your society admin can take it down, and can suspend anyone who keeps posting them.</p></div>
+    <a class="btn btn--primary btn--block" href="post.html">Post an item</a>
+    <a class="btn btn--outline btn--block" href="../index.html">Back to Home</a>
+  </main>
+  <script>
+    // Go back to wherever the visitor came from (the post form or an item).
+    document.getElementById("back").addEventListener("click", function (e) {
+      if (document.referrer.indexOf(location.origin) === 0 && history.length > 1) { e.preventDefault(); history.back(); }
+    });
+  </script>
+</body>
+</html>
