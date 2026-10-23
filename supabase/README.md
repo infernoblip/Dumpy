@@ -68,7 +68,7 @@ permission at all**, not even for the person they belong to. So:
 - Admin page: `supabase.rpc('admin_list_members', { p_society_id })` returns
   name, tower, flat, role and status for everyone in the society, and nothing
   for non-admins.
-- The matched pair's contact details: stage 6 adds `get_contact(listing_id)`.
+- The matched pair's contact details: `supabase.rpc('get_contact', { p_listing_id })`.
 
 ## Functions the website calls
 
@@ -79,11 +79,16 @@ permission at all**, not even for the person they belong to. So:
 | `get_my_profile()` | Your own profile with private fields |
 | `admin_list_members(p_society_id)` | Admin page member list |
 | `is_member(society_id)`, `is_admin(society_id)` | True for the signed-in person's approved membership; mainly for policies |
+| `accept_request(p_request_id)` | Owner only, item must be available: accepts that request, declines the other pending ones, sets the item to `reserved`. Locks the item first, so two accepts at once leave exactly one winner (stage 6) |
+| `mark_handed_over(p_listing_id)` | Owner only: `reserved` to `done` (stage 6) |
+| `cancel_reservation(p_listing_id)` | Owner only: `reserved` to `available`; the accepted request becomes `cancelled` and the declined ones `pending` again (stage 6) |
+| `get_contact(p_listing_id)` | The other person's name, tower, flat and phone, for the owner and the accepted requester of a reserved or handed-over item; nobody else gets a row. `upi_id` is filled only when the other person is the owner of a paid item (stage 8 uses it) |
 
-Accepting a request is **not** a plain update: owners can only decline.
-Stage 6 adds `accept_request(request_id)`, which accepts one, declines the
-rest and reserves the listing in one go. A unique index already guarantees at
-most one accepted request per listing.
+Asking for an item is a plain insert into `requests` (one per person per
+item; only available items posted by someone else). Moving an item into or
+out of `reserved` or `done` is **not** a plain update: a trigger refuses it,
+so the item's status and its accepted request always agree. Use the three
+functions above. Admins can still hide any item.
 
 ## Photos
 

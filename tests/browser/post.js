@@ -157,7 +157,7 @@ const jsonQ = (query) => JSON.parse(q1(`select coalesce(jsonb_agg(t), '[]') from
   await shot(n, 'home-light', false);
   await n.goto(SITE + '/pages/item.html?id=' + id); await settle(n);
   await n.waitForSelector('.item-head h1');
-  check(!(await n.isVisible('#edit-btn')) && (await n.textContent('#want-btn')).includes('Requests open soon'), 'A neighbour sees no Edit button');
+  check(!(await n.isVisible('#edit-btn')) && (await n.textContent('#want-btn')).includes('I want this'), 'A neighbour sees I want this, not Edit');
   await n.goto(SITE + '/pages/post.html?id=' + id); await settle(n);
   await n.waitForSelector('#post-missing:not([hidden])');
   check((await n.textContent('#post-missing')).includes('only edit items you posted') && !(await n.isVisible('#post-form')), 'A neighbour opening the edit page is turned away');

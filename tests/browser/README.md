@@ -1,6 +1,6 @@
 # Browser tests
 
-`run.sh` runs two tests end to end in a 360 x 740 phone viewport, without
+`run.sh` runs three tests end to end in a 360 x 740 phone viewport, without
 touching the live Supabase project. Shared pieces (the stand-in for Supabase,
 the checks) are in `lib.js`.
 
@@ -34,6 +34,23 @@ the screenshots in `docs/screenshots/stage-4/`.
    or post in the owner's name.
 6. The owner edits it (new title, Free, cover photo removed, a photo added),
    withdraws it (it leaves the feed), and posts it again.
+
+## Stage 6: browsing, asking and handing over (`request.js`)
+
+1. The feed shows 20 items, then Load more until every available item is in, each once.
+2. Free, Paid and category chips, and the search box (any case; `%` and `_` are
+   plain characters), each show only matching items, also combined.
+3. Two neighbours ask for one item (with and without a message). Their flats
+   and phones stay hidden; a second request from the same person is refused.
+4. The owner sees both in My items, and accepts one. The item is reserved, the
+   other request declined, and the pair see each other's tower, flat, WhatsApp
+   and Call buttons. The other requester sees "Reserved for someone else" and
+   "Gone to someone else", and `get_contact` gives them nothing.
+5. Two accepts sent at the same moment: exactly one wins.
+6. Cancel reservation puts the item back and reopens the other request; the
+   owner accepts that one and marks it handed over (status done).
+
+Screenshots go to `docs/screenshots/stage-6/`.
 
 Storage is faked in `lib.js`, but each upload, read and delete runs in the
 local Postgres as the signed-in person, so the real Storage rules from

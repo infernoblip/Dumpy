@@ -23,7 +23,7 @@
   <main id="main" class="page">
     <p class="notice" id="posted-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span></span></p>
     <article id="item"></article>
-    <p class="notice notice--warn" id="sent-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Request sent. You will hear back when the owner picks someone. Track it in <a href="my-items.html#requests">My items</a>.</span></p>
+    <p class="notice notice--warn" id="sent-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Request sent. If the owner picks you, their flat and phone show up here and in <a href="my-items.html#requests">My items</a>.</span></p>
   </main>
   <div class="action-bar" id="action-bar">
     <div class="action-bar__inner">
@@ -35,6 +35,8 @@
     <div class="sheet__grip" aria-hidden="true"></div>
     <form id="request-form" class="stack">
       <h2 id="sheet-title">Ask for this item</h2>
+      <p class="small muted">The owner sees your name, tower and message, and picks one person. Your flat and phone stay hidden until they pick you.</p>
+      <p class="notice notice--error" id="request-error" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span></span></p>
       <div class="field">
         <label class="label" for="request-msg">Message to the owner <span class="label__opt">(optional)</span></label>
         <textarea class="textarea" id="request-msg" maxlength="200" placeholder="For example: I can pick it up after 6 pm."></textarea>
