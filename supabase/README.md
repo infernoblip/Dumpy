@@ -22,6 +22,7 @@ migrations/            Schema, functions and rules, applied oldest first
 seed.sql               Demo Society, two demo people, five demo items
 snippets/              One-off SQL for the dashboard (create-society.sql, remove-demo-data.sql)
 tests/isolation_test.sql   Proves the rules (runs in one transaction, rolled back)
+tests/delivery_test.sql    Proves the stage 7 delivery rules (same way)
 tests/local/           Runs everything on plain Postgres without Docker
 config.toml            Local Supabase CLI settings (not used by the live project)
 ```
