@@ -969,6 +969,12 @@ body[data-auth="loading"]::after {
 .share .btn-row > .btn { flex: 1 1 140px; }
 .break { overflow-wrap: anywhere; }
 
+/* ---------- More societies (stage 12) ---------- */
+.status--rejected { background: var(--danger-soft); color: var(--danger); }
+.link-input { flex: 1 1 140px; min-width: 0; letter-spacing: 0.2em; }
+#link-form .btn-row > .btn { flex: 0 0 auto; margin-top: 0; }
+.invite .invite__code { display: inline-block; margin-top: 2px; }
+
 /* ---------- Utilities ---------- */
 .muted { color: var(--muted); }
 .small { font-size: 0.875rem; }

@@ -17,7 +17,7 @@
     return value;
   }
 
-  var LISTING_COLUMNS = "id, society_id, owner_id, title, description, category, condition, price_inr, status, created_at";
+  var LISTING_COLUMNS = "id, society_id, owner_id, title, description, category, condition, price_inr, status, visibility, created_at";
 
   function check(res) {
     if (res.error) throw res.error;
@@ -74,16 +74,24 @@
   //   filter: "all", "free", "paid" or a category value
   //   q:      words to find in the title (case doesn't matter)
   // Returns { items, more }: more is true when another page is waiting.
+  //   nearby: ids of linked societies; with filter "nearby" the feed shows
+  //           their shared items instead of this society's (stage 12)
   var PAGE = 20;
   async function feed(societyId, opts) {
     opts = opts || {};
     var from = opts.offset || 0;
-    var query = db.from("listings").select(LISTING_COLUMNS)
-      .eq("society_id", societyId).eq("status", "available");
     var f = opts.filter || "all";
+    var query = db.from("listings").select(LISTING_COLUMNS).eq("status", "available");
+    if (f === "nearby") {
+      var ids = opts.nearby || [];
+      if (!ids.length) return { items: [], more: false };
+      query = query.in("society_id", ids).eq("visibility", "nearby");
+    } else {
+      query = query.eq("society_id", societyId);
+    }
     if (f === "free") query = query.eq("price_inr", 0);
     else if (f === "paid") query = query.gt("price_inr", 0);
-    else if (f !== "all") query = query.eq("category", f);
+    else if (f !== "all" && f !== "nearby") query = query.eq("category", f);
     var q = (opts.q || "").trim();
     // % and _ are wildcards in ilike; a backslash makes them plain characters.
     if (q) query = query.ilike("title", "%" + q.replace(/[\\%_]/g, "\\$&") + "%");
@@ -192,11 +200,19 @@
     return (rows && rows[0]) || null;
   }
 
+  /* ---------- More societies (stage 12) ---------- */
+
+  // Societies this one shares items with. Members get "linked" rows; admins
+  // also get "asked" (waiting for them) and "asking" (they asked us).
+  async function nearbySocieties(societyId) {
+    return check(await db.rpc("nearby_societies", { p_society_id: societyId })) || [];
+  }
+
   /* ---------- Writes (stage 5) ---------- */
 
   // The listing fields a person may set. Everything else (owner, society,
   // status on insert) is fixed by the database rules.
-  var EDITABLE = ["title", "description", "category", "condition", "price_inr"];
+  var EDITABLE = ["title", "description", "category", "condition", "price_inr", "visibility"];
   function pick(fields) {
     var row = {};
     EDITABLE.forEach(function (k) { if (k in fields) row[k] = fields[k]; });
@@ -285,6 +301,7 @@
     markHandedOver: markHandedOver,
     cancelReservation: cancelReservation,
     contact: contact,
+    nearbySocieties: nearbySocieties,
     createListing: createListing,
     editListing: editListing,
     withdraw: withdraw,

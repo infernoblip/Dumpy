@@ -10,6 +10,10 @@
      join     join page: signed in with a profile
      member   app pages: approved members only
      admin    admin page: approved admins only
+     start    "Start Dumpy in your society": signed-out visitors see what it
+              is and a Sign in button; signed-in people need a profile
+     platform platform admin page: anyone signed in (the page and the
+              database decide whether they run Dumpy)
 
    Pages wait for Dumpy.ready, which resolves to the visitor's state:
      { status, user, profile, memberships, society }
@@ -21,6 +25,7 @@
   var ROOT = body.dataset.root || "";
   var ACCESS = body.dataset.access || "member";
   var SOCIETY_KEY = "dumpy.society";
+  var NEXT_KEY = "dumpy.next"; // set by the start page before signing in
 
   body.dataset.auth = "loading";
 
@@ -33,6 +38,17 @@
     suspended: "pages/join.html",
     member: "index.html"
   };
+
+  // Someone who tapped "Start Dumpy in your society" and then signed in goes
+  // back to that page instead of the join page.
+  function homeFor(status) {
+    if (status === "no-society") {
+      var next = null;
+      try { next = localStorage.getItem(NEXT_KEY); localStorage.removeItem(NEXT_KEY); } catch (e) { /* ignore */ }
+      if (next === "start") return "pages/start.html";
+    }
+    return HOME[status];
+  }
 
   function go(path) {
     location.replace(ROOT + path);
@@ -73,18 +89,24 @@
     var s = state.status;
     switch (ACCESS) {
       case "public":
-        return s === "signed-out" ? state : go(HOME[s]);
+        return s === "signed-out" ? state : go(homeFor(s));
       case "landing":
-        return s === "signed-out" || s === "member" ? state : go(HOME[s]);
+        return s === "signed-out" || s === "member" ? state : go(homeFor(s));
       case "account":
-        return s === "signed-out" ? go(HOME[s]) : state;
+        return s === "signed-out" ? go(homeFor(s)) : state;
       case "join":
-        return s === "signed-out" || s === "no-profile" ? go(HOME[s]) : state;
+        return s === "signed-out" || s === "no-profile" ? go(homeFor(s)) : state;
+      case "start":
+        if (s === "no-profile") return go(homeFor(s));
+        if (s !== "signed-out") { try { localStorage.removeItem(NEXT_KEY); } catch (e) { /* ignore */ } }
+        return state;
+      case "platform":
+        return s === "signed-out" ? go(homeFor(s)) : state;
       case "admin":
-        if (s !== "member") return go(HOME[s]);
+        if (s !== "member") return go(homeFor(s));
         return state.society.role === "admin" ? state : go("pages/profile.html");
       default: // member
-        return s === "member" ? state : go(HOME[s]);
+        return s === "member" ? state : go(homeFor(s));
     }
   }
 
@@ -139,7 +161,8 @@
       return new Promise(function () {});
     });
 
-  // Remember which society the visitor is looking at (stage 12 adds a switcher).
+  // Remember which society the visitor is looking at (the switcher on the
+  // Profile page, stage 12). Every page reads Dumpy.state.society.
   Dumpy.chooseSociety = function (id) {
     try { localStorage.setItem(SOCIETY_KEY, id); } catch (e) { /* private mode */ }
   };
@@ -147,7 +170,12 @@
   // Send the visitor wherever their state says they belong.
   Dumpy.goHome = async function () {
     var state = await loadState();
-    return go(HOME[state.status]);
+    return go(homeFor(state.status));
+  };
+
+  // The start page calls this before sending a signed-out visitor to sign in.
+  Dumpy.comeBackTo = function (what) {
+    try { localStorage.setItem(NEXT_KEY, what); } catch (e) { /* private mode */ }
   };
 
   var leaving = false;

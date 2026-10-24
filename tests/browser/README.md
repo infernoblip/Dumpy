@@ -109,6 +109,26 @@ Screenshots go to `docs/screenshots/stage-9/`. Sending itself is tested in
 
 Screenshots go to `docs/screenshots/stage-10/`.
 
+## Stage 12: more societies (`societies.js`)
+
+1. A signed-out visitor opens "Start Dumpy in your society", signs in, sets up a
+   profile, comes back to the form, and asks to start "Demo Society Two". The
+   join page reminds them it is waiting.
+2. A society admin gets no "Run Dumpy" link and the platform page shows them nothing.
+3. The platform admin sees the request (name, city, asker, email) and approves it:
+   the society exists with its own invite code and the asker is its admin.
+4. The new society's feed has only its own items; neither society sees the other.
+5. The two admins link with link codes (a wrong code is refused; one side alone shares nothing).
+6. Demo Society gets a "Nearby societies" chip showing only the other society's
+   nearby item; its page names the society, hides the owner and has no "I want
+   this". Asking, reading the owner, members, society-only items, the invite
+   code or contacts straight from the database all fail.
+7. An owner ticks "Also show to nearby societies" on their item; the other society sees just that one.
+8. Someone in both societies switches in Profile; the feed, post form and My items follow.
+9. Stopping sharing on one side hides everything again. Turning a request down works.
+
+Screenshots go to `docs/screenshots/stage-12/`.
+
 Storage is faked in `lib.js`, but each upload, read and delete runs in the
 local Postgres as the signed-in person, so the real Storage rules from
 `supabase/migrations` decide what is allowed. Screenshots go to
