@@ -281,6 +281,7 @@
         };
         btn.addEventListener("click", act);
         main.querySelector('.contact [data-act="cancel"]').addEventListener("click", act);
+        mountDelivery(main);
         return;
       }
 
@@ -310,6 +311,7 @@
       var oc = await Dumpy.data.contact(l.id).catch(function () { return null; });
       if (Dumpy.pay) await Dumpy.pay.loadStatus([l]);
       ownerSection.outerHTML = contactCard(oc, l, false);
+      mountDelivery(main);
       btn.textContent = l.status === "done" ? "Handed over to you" : "Reserved for you";
       btn.disabled = true;
       return;
@@ -383,15 +385,20 @@
           '<a class="btn btn--outline" href="tel:+' + wa + '">' + ICON_PHONE + "Call</a></div>"
       : '<p class="small muted">' + esc(c.display_name) + " has not added a phone number. " +
           (c.flat ? "Knock at flat " + esc(c.flat) + "." : "Ask your society admin how to reach them.") + "</p>";
-    var hint = ownerView
-      ? (l.status === "done" ? "" : "Agree a time with " + esc(c.display_name) + " to hand it over. Once it's done, tap Mark handed over.")
-      : (l.status === "done" ? "" : "Agree a time with " + esc(c.display_name) + " to pick it up.");
+    var hint = l.status === "done" ? "" : "Agree with " + esc(c.display_name) + " how and when it reaches " +
+      (ownerView ? "their" : "your") + " flat.";
+    // Stage 7: js/delivery.js fills this with the delivery plan.
+    var delivery = l.status === "reserved"
+      ? '<div data-delivery-for="' + esc(l.id) + '" data-role="' + (ownerView ? "owner" : "taker") + '" data-other="' + esc(c.display_name) + '"></div>'
+      : "";
     return '<section class="section stack-sm contact" aria-labelledby="' + hid + '"><h2 id="' + hid + '">' + title + "</h2>" +
       '<div class="person"><span class="avatar" aria-hidden="true">' + initial(c.display_name) + "</span>" +
       '<div><p class="person__name">' + esc(c.display_name) + '</p><p class="person__meta">' + esc(where) + "</p></div></div>" +
       buttons + (hint ? '<p class="small muted">' + hint + "</p>" : "") +
-      (Dumpy.pay ? Dumpy.pay.card(l, c, ownerView) : "") + "</section>";
+      (Dumpy.pay ? Dumpy.pay.card(l, c, ownerView) : "") + delivery + "</section>";
   }
+
+  function mountDelivery(root) { if (Dumpy.delivery) Dumpy.delivery.mount(root); }
 
   // Accept, Mark handed over, Cancel reservation. Asks first; returns true when done.
   async function ownerAct(act, l, name, btn) {
@@ -504,6 +511,8 @@
         '<p class="row-card__meta">' + priceText(l.price_inr) + " · " + esc(l.owner.display_name) + (l.owner.tower ? ", " + esc(tower(l.owner.tower)) : "") + "</p>" +
         statusPill(pill) + "</div></div>" + extra + "</li>";
     }).join("") : '<li class="empty"><p>You have not asked for anything yet.</p><a class="btn btn--primary" href="../index.html">Browse items</a></li>';
+    mountDelivery(list);
+    mountDelivery(mineReq);
   }
 
   // Edit and Withdraw for available items; Edit and Post again for withdrawn

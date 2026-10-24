@@ -1,6 +1,6 @@
 # Browser tests
 
-`run.sh` runs five tests end to end in a 360 x 740 phone viewport, without
+`run.sh` runs six tests end to end in a 360 x 740 phone viewport, without
 touching the live Supabase project. Shared pieces (the stand-in for Supabase,
 the checks) are in `lib.js`.
 
@@ -51,6 +51,24 @@ the screenshots in `docs/screenshots/stage-4/`.
    owner accepts that one and marks it handed over (status done).
 
 Screenshots go to `docs/screenshots/stage-6/`.
+
+## Stage 7: delivery (`delivery.js`)
+
+1. Once the owner accepts a request, both sides see a delivery card on the
+   item page and in My items, in their own words ("I'll bring it over",
+   "I'll collect it", "A neighbour helper brings it").
+2. The taker picks a helper, tomorrow 6 to 8 pm, with a ₹30 cash tip note; the
+   database stores it as 18:00 Indian time. The owner moves it to 4 to 6 pm,
+   and it stays one delivery.
+3. A member who is not a helper sees "not signed up as a helper" on the jobs
+   page and gets no jobs, even when asking the database directly.
+4. A third member switches on "I can help deliver" in Profile, sees the job
+   with towers only (no flats or phones), and takes it. Now they see both
+   flats with WhatsApp and Call buttons, and nobody else can take it.
+5. The taker sees "Helper found" with the helper's name and WhatsApp.
+6. The helper taps Mark delivered: the delivery closes and the item is done.
+
+Screenshots go to `docs/screenshots/stage-7/`.
 
 ## Stage 8: paying by UPI (`pay.js`)
 
