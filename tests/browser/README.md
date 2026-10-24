@@ -1,6 +1,6 @@
 # Browser tests
 
-`run.sh` runs four tests end to end in a 360 x 740 phone viewport, without
+`run.sh` runs six tests end to end in a 360 x 740 phone viewport, without
 touching the live Supabase project. Shared pieces (the stand-in for Supabase,
 the checks) are in `lib.js`.
 
@@ -69,6 +69,31 @@ Screenshots go to `docs/screenshots/stage-6/`.
 6. The helper taps Mark delivered: the delivery closes and the item is done.
 
 Screenshots go to `docs/screenshots/stage-7/`.
+
+## Stage 8: paying by UPI (`pay.js`)
+
+1. The taker of a paid item gets Pay ₹250, linking to
+   `upi://pay?pa=<owner's UPI ID>&pn=<owner>&am=250.00&cu=INR&tn=Dumpy: <title>`.
+2. Copy puts the UPI ID on the clipboard (the fallback for iPhone).
+3. A QR decoder reads the QR code back as exactly the Pay link. It starts
+   folded on a phone and open on a wide screen.
+4. Free items show no payment at all; an owner without a UPI ID means "pay in cash".
+5. Only the owner can Mark as paid (and undo it); the taker then sees it paid.
+6. The profile refuses a UPI ID that doesn't look like name@bank.
+
+Screenshots go to `docs/screenshots/stage-8/`.
+
+## Stage 9: notifications (`notify.js`)
+
+1. Profile: Email updates starts on, shows the address, saves off and on at once, and stays off after a reload.
+2. With it off, the owner gets no email row when someone asks; with it on, exactly one, and nobody else.
+3. Accepting queues exactly one email, to the chosen requester.
+4. Item page: Share on WhatsApp opens `wa.me` with the title and link; More opens
+   the phone's share sheet (faked) with the same link; neither shows on a
+   reserved or missing item.
+
+Screenshots go to `docs/screenshots/stage-9/`. Sending itself is tested in
+`tests/functions/send-email.test.mjs`.
 
 Storage is faked in `lib.js`, but each upload, read and delete runs in the
 local Postgres as the signed-in person, so the real Storage rules from

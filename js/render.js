@@ -268,6 +268,7 @@
 
       if (l.status === "reserved" || l.status === "done") {
         var c = await Dumpy.data.contact(l.id).catch(function () { return null; });
+        if (Dumpy.pay) await Dumpy.pay.loadStatus([l]);
         ownerSection.outerHTML = contactCard(c, l, true);
         if (l.status === "done") { btn.textContent = "Handed over"; btn.disabled = true; return; }
         btn.textContent = "Mark handed over";
@@ -308,6 +309,7 @@
     if (accepted && (l.status === "reserved" || l.status === "done")) {
       head.insertAdjacentHTML("beforeend", statusPill(l.status === "done" ? "done" : "accepted"));
       var oc = await Dumpy.data.contact(l.id).catch(function () { return null; });
+      if (Dumpy.pay) await Dumpy.pay.loadStatus([l]);
       ownerSection.outerHTML = contactCard(oc, l, false);
       mountDelivery(main);
       btn.textContent = l.status === "done" ? "Handed over to you" : "Reserved for you";
@@ -392,7 +394,8 @@
     return '<section class="section stack-sm contact" aria-labelledby="' + hid + '"><h2 id="' + hid + '">' + title + "</h2>" +
       '<div class="person"><span class="avatar" aria-hidden="true">' + initial(c.display_name) + "</span>" +
       '<div><p class="person__name">' + esc(c.display_name) + '</p><p class="person__meta">' + esc(where) + "</p></div></div>" +
-      buttons + (hint ? '<p class="small muted">' + hint + "</p>" : "") + delivery + "</section>";
+      buttons + (hint ? '<p class="small muted">' + hint + "</p>" : "") +
+      (Dumpy.pay ? Dumpy.pay.card(l, c, ownerView) : "") + delivery + "</section>";
   }
 
   function mountDelivery(root) { if (Dumpy.delivery) Dumpy.delivery.mount(root); }
@@ -434,6 +437,7 @@
       list.innerHTML = '<li class="empty"><p>' + esc(problem(err)) + "</p></li>";
       return;
     }
+    if (Dumpy.pay) await Dumpy.pay.loadStatus(d.listings.concat(d.outgoing.map(function (r) { return r.listing; })));
 
     list.innerHTML = d.listings.length ? d.listings.map(function (l) {
       var waiting = d.incoming.filter(function (r) { return r.listing_id === l.id && r.status === "pending"; });

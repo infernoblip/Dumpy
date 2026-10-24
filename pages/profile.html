@@ -53,16 +53,8 @@
       </div>
       <div class="field">
         <label class="label" for="upi_id">UPI ID <span class="label__opt">(optional)</span></label>
-        <input class="input" id="upi_id" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="name@bank" aria-describedby="upi-hint">
-        <span class="hint" id="upi-hint">So buyers can pay you directly.</span>
-      </div>
-
-      <!-- Email switch (stage 9) goes live later. -->
-      <div class="card-box stack-sm" hidden>
-        <label class="switch">
-          <span class="switch__text"><strong>Email updates</strong><br><span class="small muted">Requests and handovers, sent to <span id="email-shown"></span></span></span>
-          <input type="checkbox" id="emails">
-        </label>
+        <input class="input" id="upi_id" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="128" placeholder="name@bank" aria-describedby="upi-hint">
+        <span class="hint" id="upi-hint">Looks like name@okaxis or 98xxxxxx10@ybl. When you sell something, the buyer pays you straight to this ID. It's shown only to them.</span>
       </div>
 
       <p class="notice notice--error" id="profile-error" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span></span></p>
@@ -70,13 +62,24 @@
       <p class="notice" id="saved-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Saved.</span></p>
     </form>
 
+    <section class="section stack-sm" id="email-box" aria-labelledby="email-h" hidden>
+      <h2 id="email-h">Notifications</h2>
+      <div class="card-box">
+        <label class="switch">
+          <span class="switch__text"><strong>Email updates</strong><br><span class="small muted">New requests, picks and deliveries, sent to <span id="email-shown" class="break"></span></span></span>
+          <input type="checkbox" id="emails" role="switch">
+        </label>
+      </div>
+      <p class="small muted" id="email-status" role="status"></p>
+    </section>
+
     <!-- Delivery helper (stage 7). Saved as soon as it is switched; js/delivery.js shows it. -->
     <section class="section stack-sm" id="helper-box" aria-labelledby="helper-h" hidden>
       <h2 id="helper-h">Delivery</h2>
       <div class="card-box stack-sm">
         <label class="switch">
           <span class="switch__text"><strong>I can help deliver</strong><br><span class="small muted">See delivery jobs from neighbours and carry items between towers, for a tip they offer</span></span>
-          <input type="checkbox" id="helper">
+          <input type="checkbox" id="helper" role="switch">
         </label>
         <a class="btn btn--outline btn--block" id="jobs-link" href="jobs.html" hidden>See delivery jobs</a>
       </div>
@@ -107,5 +110,6 @@
   <script defer src="../js/data.js"></script>
   <script defer src="../js/render.js"></script>
   <script defer src="../js/delivery.js"></script>
+  <script defer src="../js/notify.js"></script>
 </body>
 </html>
