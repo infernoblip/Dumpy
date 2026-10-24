@@ -97,7 +97,7 @@
       '<div class="item-card__photo">' + photo(l.photos[0], "", index < 4) + priceBadge(l.price_inr) + "</div>" +
       '<div class="item-card__body">' +
         '<h2 class="item-card__title">' + esc(l.title) + "</h2>" +
-        '<p class="item-card__meta">' + (l.owner.tower ? esc(tower(l.owner.tower)) + " · " : "") + timeAgo(l.created_at) + "</p>" +
+        '<p class="item-card__meta">' + (l.from ? esc(l.from) + " · " : l.owner.tower ? esc(tower(l.owner.tower)) + " · " : "") + timeAgo(l.created_at) + "</p>" +
       "</div></a></li>";
   }
 
@@ -118,7 +118,19 @@
     var meta = $("#feed-meta");
     var filter = "all";
 
-    var options = [["all", "All"], ["free", "Free"], ["paid", "Paid"]].concat(Dumpy.data.CATEGORIES);
+    // Societies that share items with this one (stage 12): a "Nearby" chip
+    // shows their items marked for nearby societies.
+    var nearby = [];
+    try {
+      nearby = (await Dumpy.data.nearbySocieties(state.society.society_id))
+        .filter(function (n) { return n.status === "linked"; });
+    } catch (err) { console.error(err); }
+    var nearbyName = {};
+    nearby.forEach(function (n) { nearbyName[n.society_id] = n.name; });
+
+    var options = [["all", "All"], ["free", "Free"], ["paid", "Paid"]]
+      .concat(nearby.length ? [["nearby", "Nearby societies"]] : [])
+      .concat(Dumpy.data.CATEGORIES);
     chips.innerHTML = options.map(function (c) {
       return '<button type="button" class="chip" aria-pressed="' + (c[0] === "all") + '" data-filter="' + esc(c[0]) + '">' + esc(c[1]) + "</button>";
     }).join("");
@@ -136,7 +148,10 @@
       more.textContent = "Loading…";
       var page;
       try {
-        page = await Dumpy.data.feed(state.society.society_id, { filter: filter, q: q, offset: shown });
+        page = await Dumpy.data.feed(state.society.society_id, {
+          filter: filter, q: q, offset: shown,
+          nearby: nearby.map(function (n) { return n.society_id; })
+        });
       } catch (err) {
         if (ticket !== wanted) return;
         more.disabled = false;
@@ -147,6 +162,9 @@
       if (ticket !== wanted) return;
       more.disabled = false;
       more.textContent = "Load more";
+      page.items.forEach(function (l) {
+        if (l.society_id !== state.society.society_id) l.from = nearbyName[l.society_id] || "Nearby society";
+      });
       var html = page.items.map(function (l, i) { return itemCard(l, shown + i); }).join("");
       shown += page.items.length;
       if (append) grid.insertAdjacentHTML("beforeend", html);
@@ -154,12 +172,14 @@
       else {
         var filtered = q || filter !== "all";
         grid.innerHTML = '<li class="empty" style="grid-column:1/-1"><p>' +
-          (filtered ? "Nothing matches. Try another word or filter." : "Nothing here yet. Be the first to post something.") +
+          (filter === "nearby" && !q ? "Nearby societies have not shared anything right now." :
+           filtered ? "Nothing matches. Try another word or filter." : "Nothing here yet. Be the first to post something.") +
           '</p><a class="btn btn--primary" href="pages/post.html">Post an item</a></li>';
       }
       more.hidden = !page.more;
       meta.textContent = shown
-        ? (page.more ? "Newest " + shown + " items" : plural(shown, "item", "items")) + (q ? " matching “" + q + "”" : "") + " in " + state.society.society_name
+        ? (page.more ? "Newest " + shown + " items" : plural(shown, "item", "items")) + (q ? " matching “" + q + "”" : "") +
+          (filter === "nearby" ? " from nearby societies" : " in " + state.society.society_name)
         : "";
     }
 
@@ -261,6 +281,30 @@
     $("#action-price").textContent = priceText(l.price_inr);
     var head = main.querySelector(".item-head");
     var ownerSection = main.querySelector('[aria-labelledby="owner-h"]');
+
+    // An item a nearby society shared (stage 12): look, but no asking. Requests,
+    // names and flats stay inside each society.
+    var inMySociety = state.memberships.some(function (m) { return m.society_id === l.society_id && m.status === "approved"; });
+    if (!inMySociety) {
+      var from = "a nearby society";
+      try {
+        var linked = await Dumpy.data.nearbySocieties(state.society.society_id);
+        linked.forEach(function (n) { if (n.society_id === l.society_id) from = n.name; });
+      } catch (e2) { console.error(e2); }
+      var pick = main.querySelectorAll(".facts > div")[2];
+      if (pick) pick.querySelector("dd").textContent = from;
+      ownerSection.outerHTML = '<section class="section stack-sm" aria-labelledby="owner-h">' +
+        '<h2 id="owner-h">From a nearby society</h2>' +
+        '<div class="person"><span class="avatar" aria-hidden="true">' + initial(from) + "</span>" +
+        '<div><p class="person__name">' + esc(from) + '</p><p class="person__meta">Shares items with ' + esc(state.society.society_name) + "</p></div></div>" +
+        '<p class="small muted">Requests stay inside each society, so you can\'t ask for this on Dumpy. If you know someone in ' + esc(from) +
+        ", they can ask for it for you.</p></section>";
+      var info = main.querySelector(".section:last-child .notice p");
+      if (info) info.textContent = "Only members of " + from + " can ask for this item. Dumpy never holds money.";
+      btn.textContent = "In a nearby society";
+      btn.disabled = true;
+      return;
+    }
 
     if (l.owner_id === state.user.id) {
       if (l.status !== "available") head.insertAdjacentHTML("beforeend", statusPill(l.status));

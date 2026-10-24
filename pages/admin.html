@@ -41,6 +41,27 @@
       <p class="notice" id="reports-status" role="status" aria-live="polite" hidden></p>
       <ul class="list" id="reports"><li class="empty"><p>Loading…</p></li></ul>
     </section>
+    <!-- Nearby societies (stage 12): filled by js/societies.js -->
+    <section class="section" id="nearby-section" aria-labelledby="nearby-h">
+      <div class="section__head"><h2 id="nearby-h">Nearby societies</h2><span class="status status--pending" id="nearby-count" hidden></span></div>
+      <p class="hint" style="margin:0 0 var(--space-3)">Share items with a society close by. It starts only when both admins agree, and only items their owners mark "Also show to nearby societies" cross over. Members, flats, phones and requests never do.</p>
+      <div class="card-box invite">
+        <p><span class="small muted">Your link code</span><br><span class="invite__code" id="link-code" aria-live="polite">…</span></p>
+        <button type="button" class="btn btn--outline btn--sm" id="copy-link-code">Copy</button>
+      </div>
+      <p class="hint">Give it to the other society's admin. It only links societies: nobody can join yours with it.</p>
+      <form class="stack-sm" id="link-form" novalidate style="margin-top:var(--space)">
+        <div class="field">
+          <label class="label" for="link-input">Their link code</label>
+          <div class="btn-row">
+            <input class="input code-input link-input" id="link-input" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD2345">
+            <button type="submit" class="btn btn--primary">Ask to share</button>
+          </div>
+        </div>
+        <p class="notice notice--error" id="link-error" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span></span></p>
+      </form>
+      <ul class="list" id="nearby-list" style="margin-top:var(--space)"></ul>
+    </section>
     <section class="section" aria-labelledby="members-h">
       <div class="section__head"><h2 id="members-h">Members</h2><span class="small muted" id="member-count"></span></div>
       <ul class="list" id="members"></ul>
@@ -61,6 +82,7 @@
   <script defer src="../js/auth.js"></script>
   <script defer src="../js/data.js"></script>
   <script defer src="../js/render.js"></script>
+  <script defer src="../js/societies.js"></script>
   <script defer src="../js/moderation.js"></script>
 </body>
 </html>

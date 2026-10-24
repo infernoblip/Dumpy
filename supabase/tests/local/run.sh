@@ -42,6 +42,8 @@ echo "== notification tests"
 psql_run -At -f "$root/tests/notifications_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
 echo "== moderation tests"
 psql_run -At -f "$root/tests/moderation_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
+echo "== society tests"
+psql_run -At -f "$root/tests/societies_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
 echo "== concurrent accept test"
 PSQL_ARGS="-h /tmp -p $port -U postgres -d postgres" bash "$here/concurrent_accept.sh"
 echo "== concurrent claim test"

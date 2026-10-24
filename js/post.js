@@ -52,6 +52,20 @@
     }
     free.addEventListener("change", syncPrice);
 
+    // "Also show to nearby societies" (stage 12): only offered when the
+    // society shares with at least one other, or the item is already shared.
+    var nearby = $("#nearby");
+    async function offerNearby(societyId) {
+      var linked = [];
+      try { linked = await D.nearbySocieties(societyId); } catch (err) { console.error(err); }
+      linked = linked.filter(function (s) { return s.status === "linked"; });
+      if (!linked.length && !nearby.checked) return;
+      $("#nearby-names").textContent = linked.length
+        ? linked.map(function (s) { return s.name; }).join(", ")
+        : "No society shares with yours right now";
+      $("#nearby-box").hidden = false;
+    }
+
     /* ---------- Editing an existing item ---------- */
     if (editId) {
       document.title = "Edit item · Dumpy";
@@ -80,6 +94,7 @@
       if (cond) cond.checked = true;
       free.checked = l.price_inr === 0;
       if (l.price_inr > 0) price.value = l.price_inr;
+      nearby.checked = l.visibility === "nearby";
       try {
         (await D.photoRows(l.id)).forEach(function (row) {
           photos.push({ row: row, preview: row.url, state: "done" });
@@ -88,6 +103,7 @@
       form.hidden = false;
     }
     syncPrice();
+    offerNearby(listing ? listing.society_id : state.society.society_id);
 
     /* ---------- Photos ---------- */
     var picker = $("#photo-picker");
@@ -195,7 +211,8 @@
         description: $("#description").value.trim(),
         category: cat.value,
         condition: checked ? checked.value : "",
-        price_inr: free.checked ? 0 : Number(price.value)
+        price_inr: free.checked ? 0 : Number(price.value),
+        visibility: nearby.checked ? "nearby" : "society"
       };
     }
 

@@ -29,6 +29,15 @@
       </div>
     </div>
 
+    <!-- Society switcher (stage 12): js/societies.js shows it when you belong to more than one. -->
+    <section class="section stack-sm" id="switch-box" aria-labelledby="switch-h" hidden>
+      <h2 id="switch-h">Your societies</h2>
+      <fieldset class="fieldset">
+        <legend class="small muted">Dumpy shows the items, members and jobs of the society you pick here.</legend>
+        <div class="choice-col" id="switch-list"></div>
+      </fieldset>
+    </section>
+
     <form id="profile-form" class="section stack" novalidate>
       <h2>Your details</h2>
       <div class="field">
@@ -89,7 +98,9 @@
       <h2 class="visually-hidden">More</h2>
       <ul class="menu">
         <li id="admin-link" hidden><a href="admin.html">Society admin</a></li>
+        <li id="platform-link" hidden><a href="platform.html">Run Dumpy</a></li>
         <li id="join-link"><a href="join.html">Join another society</a></li>
+        <li id="start-link"><a href="start.html">Start Dumpy in a new society</a></li>
         <li><a class="menu__danger" href="#" data-sign-out>Sign out</a></li>
       </ul>
       <p class="small muted signed-as">Signed in as <span id="signed-email"></span></p>
@@ -109,6 +120,7 @@
   <script defer src="../js/auth.js"></script>
   <script defer src="../js/data.js"></script>
   <script defer src="../js/render.js"></script>
+  <script defer src="../js/societies.js"></script>
   <script defer src="../js/delivery.js"></script>
   <script defer src="../js/notify.js"></script>
 </body>

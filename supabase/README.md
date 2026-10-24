@@ -20,11 +20,12 @@ Setup steps for the real project are in [docs/supabase-setup.md](../docs/supabas
 ```
 migrations/            Schema, functions and rules, applied oldest first
 seed.sql               Demo Society, two demo people, five demo items
-snippets/              One-off SQL for the dashboard (create-society.sql, remove-demo-data.sql)
+snippets/              One-off SQL for the dashboard (create-society.sql, make-platform-admin.sql, remove-demo-data.sql)
 tests/isolation_test.sql   Proves the rules (runs in one transaction, rolled back)
 tests/delivery_test.sql    Proves the stage 7 delivery rules (same way)
 tests/payments_test.sql    Stage 8 payment rules, same way
 tests/notifications_test.sql   Proves who gets which email (stage 9, rolled back)
+tests/societies_test.sql   New societies and nearby sharing (stage 12, rolled back)
 functions/send-email/  Edge Function that sends notification emails (stage 9)
 tests/local/           Runs everything on plain Postgres without Docker
 config.toml            Local Supabase CLI settings (not used by the live project)
@@ -38,10 +39,13 @@ societies.
 
 | Table | What it holds | Who can read | Who can change |
 |---|---|---|---|
-| `societies` | name, `invite_code` | approved members | admins: name, invite code |
+| `societies` | name, `invite_code`, `city`, private `link_code` | approved members (not `link_code`: use `society_link_code`) | admins: name, invite code |
+| `society_requests` | someone asking to start Dumpy in their society: name, city, their email, status pending/approved/rejected, note (stage 12) | the asker | only through the functions below; the asker can withdraw a pending one |
+| `platform_admins` | the people who run Dumpy and approve new societies (stage 12) | nobody (use `is_platform_admin()`) | only by hand in the dashboard (`snippets/make-platform-admin.sql`) |
+| `society_links` | society A agreed to share nearby items with society B; sharing is on only when both rows exist (stage 12) | nobody (use `nearby_societies`) | only through the link functions |
 | `memberships` | person, society, `role` member/admin, `status` pending/approved/suspended | yourself; admins of that society | admins (not their own row); you can leave unless suspended |
 | `profiles` | `display_name`, `tower`, and private `flat`, `phone`, `upi_id`, `email_notifications` | name and tower: neighbours in an approved society, and admins of a society you asked to join | yourself |
-| `listings` | title, description, category, condition, `price_inr` (0 = Free), status, `expires_at` | approved members: available, reserved, done; also the owner and admins: withdrawn, expired, hidden | owner (cannot hide, cannot edit a hidden item); admins |
+| `listings` | title, description, category, condition, `price_inr` (0 = Free), status, `expires_at`, `visibility` society/nearby (stage 12) | approved members: available, reserved, done; also the owner and admins: withdrawn, expired, hidden; members of a linked society: available `nearby` items only | owner (cannot hide, cannot edit a hidden item); admins |
 | `listing_photos` | `storage_path`, `position` | anyone who can see the listing | listing owner |
 | `requests` | requester, message, status, `paid_at` (stage 8: owner marked it paid) | requester; listing owner | requester: edit message or cancel while pending; owner: decline |
 | `notifications` | one row per email: recipient, `kind`, item, `status` pending/sending/sent/failed/skipped (stage 9) | nobody on the website | only the database's triggers and the `send-email` function |
@@ -92,6 +96,28 @@ permission at all**, not even for the person they belong to. So:
 | `renew_listing(p_listing_id)` | Owner only: an `expired` or `withdrawn` item goes back to `available` for 30 more days, dated by the database clock (stage 10) |
 | `get_contact(p_listing_id)` | The other person's name, tower, flat and phone, for the owner and the accepted requester of a reserved or handed-over item; nobody else gets a row. `upi_id` is filled only when the other person is the owner of a paid item (stage 8 uses it) |
 | `set_paid(p_listing_id, p_paid)` | Owner only, paid item that is reserved or handed over: marks the accepted request paid (`requests.paid_at`) or not. Returns the new `paid_at`. Nothing else about a payment is stored (stage 8) |
+
+### More societies (stage 12)
+
+| Function | Use |
+|---|---|
+| `request_society(p_name, p_city)` | Signed in with a profile: ask to start Dumpy in a society. Stores the sign-in email. At most 3 waiting per person |
+| `is_platform_admin()` | True for the people who run Dumpy |
+| `platform_society_requests()`, `platform_societies()` | Platform admins only: every request (with the asker's name), every society (name, city) |
+| `approve_society_request(p_request_id)` | Platform admin: creates the society with a fresh invite code and makes the asker its approved admin. Returns `society_id, invite_code` |
+| `reject_society_request(p_request_id, p_note)` | Platform admin: turns it down; the asker sees the note |
+| `society_link_code(p_society_id)` | Admin: the code to give a nearby society's admin. It links societies, never lets anyone join |
+| `link_society(p_society_id, p_link_code)` | Admin: ask to share with that society (or agree, if they asked first) |
+| `accept_society_link(p_society_id, p_other_id)` | Admin: agree to a society that asked |
+| `unlink_society(p_society_id, p_other_id)` | Admin: stop sharing, decline, or withdraw. Removes both directions |
+| `nearby_societies(p_society_id)` | Members: linked societies (`linked`); admins also see `asked` and `asking` |
+
+A member of a linked society sees, through row-level security, only listings
+with `visibility = 'nearby'` that are available and in date, plus their photo
+rows and files. Nothing else crosses: not memberships, profiles, requests,
+reports, deliveries or contacts, and they cannot request, report or edit those
+items. Pick the society with `Dumpy.chooseSociety(id)` (the Profile switcher);
+every page uses `Dumpy.state.society`.
 
 ### Moderation and expiry (stage 10)
 

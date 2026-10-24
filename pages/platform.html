@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Run Dumpy: approve new societies.">
+  <title>Run Dumpy · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-access="platform" data-page="platform" data-root="../" class="">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="icon-btn" href="profile.html" aria-label="Back to Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+      <h1 class="app-header__title">Run Dumpy</h1>
+    </div>
+  </header>
+  <main id="main" class="page">
+    <div id="not-platform" class="empty" hidden>
+      <p>This page is for the people who run Dumpy.</p>
+      <a class="btn btn--primary" href="profile.html">Back to Profile</a>
+    </div>
+    <div id="platform" hidden>
+      <section class="section" aria-labelledby="waiting-h">
+        <div class="section__head"><h2 id="waiting-h">New societies waiting</h2><span class="status status--pending" id="waiting-count" hidden></span></div>
+        <p class="hint" style="margin:0 0 var(--space-3)">Approve creates the society and makes the person who asked its admin. Their neighbours then join with its invite code.</p>
+        <p class="notice" id="platform-status" role="status" aria-live="polite" hidden></p>
+        <ul class="list" id="waiting"><li class="empty"><p>Loading…</p></li></ul>
+      </section>
+      <section class="section" aria-labelledby="answered-h">
+        <h2 id="answered-h">Answered</h2>
+        <ul class="list" id="answered"></ul>
+      </section>
+      <section class="section" aria-labelledby="all-h">
+        <div class="section__head"><h2 id="all-h">Societies on Dumpy</h2><span class="small muted" id="all-count"></span></div>
+        <ul class="list" id="all-societies"></ul>
+      </section>
+    </div>
+  </main>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+  <script defer src="../js/config.js"></script>
+  <script defer src="../js/supabase.js"></script>
+  <script defer src="../js/auth.js"></script>
+  <script defer src="../js/data.js"></script>
+  <script defer src="../js/render.js"></script>
+  <script defer src="../js/societies.js"></script>
+</body>
+</html>

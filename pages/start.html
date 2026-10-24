@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Start Dumpy in your housing society.">
+  <title>Start Dumpy in your society · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-access="start" data-page="start" data-root="../" class="">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <main id="main" class="auth">
+    <img class="auth__logo" src="../assets/favicon.svg" alt="" width="72" height="72">
+    <h1 class="auth__title">Start Dumpy in your society</h1>
+    <p class="auth__lead">Bring Dumpy to your own housing society. Your neighbours get their own private space: nobody outside your society sees your items or who you are.</p>
+
+    <div id="step-intro" data-step hidden>
+      <ol class="steps">
+        <li><strong>Sign in with your email.</strong> No password: we email you a link.</li>
+        <li><strong>Tell us your society's name and city.</strong> The Dumpy team checks each new society, usually within a day.</li>
+        <li><strong>You become its admin.</strong> You get an invite code to share with neighbours, and you approve each person who joins.</li>
+      </ol>
+      <a class="btn btn--primary btn--lg btn--block" id="start-sign-in" href="sign-in.html">Sign in to start</a>
+      <p class="auth__foot"><a href="../index.html">Back to Dumpy</a></p>
+    </div>
+
+    <div id="step-form" data-step hidden>
+      <form id="start-form" class="auth__form" novalidate>
+        <div class="field">
+          <label class="label" for="society-name">Society name</label>
+          <input class="input" id="society-name" required maxlength="120" autocomplete="off" placeholder="Demo Society">
+        </div>
+        <div class="field">
+          <label class="label" for="society-city">City</label>
+          <input class="input" id="society-city" required maxlength="60" autocomplete="address-level2" placeholder="Pune">
+        </div>
+        <div class="field">
+          <span class="label">Your email</span>
+          <p class="card-box break" id="start-email"></p>
+          <span class="hint">The email you signed in with. The Dumpy team may write to you here about your society.</span>
+        </div>
+        <p class="notice notice--error" id="start-error" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span></span></p>
+        <button type="submit" class="btn btn--primary btn--lg btn--block">Send request</button>
+      </form>
+
+      <section class="section" id="requests-box" aria-labelledby="requests-h" hidden>
+        <h2 id="requests-h">Your requests</h2>
+        <ul class="list" id="start-requests"></ul>
+      </section>
+      <p class="auth__foot"><a id="start-back" href="profile.html">Back to Profile</a></p>
+    </div>
+  </main>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+  <script defer src="../js/config.js"></script>
+  <script defer src="../js/supabase.js"></script>
+  <script defer src="../js/auth.js"></script>
+  <script defer src="../js/data.js"></script>
+  <script defer src="../js/render.js"></script>
+  <script defer src="../js/societies.js"></script>
+</body>
+</html>
