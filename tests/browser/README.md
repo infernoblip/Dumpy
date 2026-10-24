@@ -95,6 +95,20 @@ Screenshots go to `docs/screenshots/stage-8/`.
 Screenshots go to `docs/screenshots/stage-9/`. Sending itself is tested in
 `tests/functions/send-email.test.mjs`.
 
+## Stage 10: moderation (`moderation.js`)
+
+1. A neighbour reports two items (a reason is required, a note is optional). The
+   owner gets no Report button on their own items and cannot read the reports.
+2. The admin sees both in Reported items, hides one in one tap (it leaves the
+   feed; the owner sees "Hidden by your admin") and dismisses the other.
+3. The admin suspends the neighbour, who lands on the suspended screen and can
+   read no items; Restore brings the feed back.
+4. An item older than 30 days leaves the feed, the expiry job marks it expired,
+   and the owner's Renew puts it back for 30 more days.
+5. The Not allowed page, linked from the post form, lists every banned kind of item.
+
+Screenshots go to `docs/screenshots/stage-10/`.
+
 Storage is faked in `lib.js`, but each upload, read and delete runs in the
 local Postgres as the signed-in person, so the real Storage rules from
 `supabase/migrations` decide what is allowed. Screenshots go to
