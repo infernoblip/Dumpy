@@ -1,0 +1,19 @@
+{
+  "name": "Dumpy",
+  "short_name": "Dumpy",
+  "description": "Give away or sell your extra stuff to neighbours.",
+  "id": "./index.html",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f8f5",
+  "theme_color": "#1f7a4d",
+  "lang": "en",
+  "categories": ["lifestyle", "shopping"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

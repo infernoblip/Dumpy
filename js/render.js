@@ -720,6 +720,35 @@
       showStep("step-form");
       $("#email").focus();
     });
+
+    // The email also carries a short code. Typing it signs in right here,
+    // which matters in the home-screen app: on iPhone it keeps its own
+    // sign-in, separate from the browser that opens the email's link.
+    var codeForm = $("#code-form");
+    var codeErr = $("#code-error");
+    codeForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      codeErr.hidden = true;
+      var code = $("#code").value.replace(/\D/g, "");
+      if (code.length < 6) {
+        codeErr.querySelector("span").textContent = "Type the code from the email (6 or more digits).";
+        codeErr.hidden = false;
+        $("#code").focus();
+        return;
+      }
+      var btn = codeForm.querySelector("button[type=submit]");
+      setBusy(btn, true, "Signing in…");
+      var res = await db().auth.verifyOtp({ email: $("#sent-email").textContent, token: code, type: "email" });
+      if (res.error) {
+        setBusy(btn, false);
+        codeErr.querySelector("span").textContent = /expired|invalid/i.test(res.error.message || "")
+          ? "That code is wrong or has expired. Check the newest email, or send a new one."
+          : problem(res.error);
+        codeErr.hidden = false;
+        return;
+      }
+      await Dumpy.goHome();
+    });
   }
 
   /* ---------- Join, and the waiting screen ---------- */

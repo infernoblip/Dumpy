@@ -1,6 +1,6 @@
 # Browser tests
 
-`run.sh` runs six tests end to end in a 360 x 740 phone viewport, without
+`run.sh` runs eight tests end to end in a 360 x 740 phone viewport, without
 touching the live Supabase project. Shared pieces (the stand-in for Supabase,
 the checks) are in `lib.js`.
 
@@ -138,3 +138,24 @@ The email itself is faked: the test makes a sign-in link the same shape as
 Supabase's (`#access_token=...`) with a key known only to the throwaway local
 database. Run them with `bash tests/browser/run.sh` (or `bash tests/browser/run.sh post.js`
 for one); the top of that file lists what it needs. All test people and items are made up (Demo Society, example.com).
+
+## Stage 11: launch (`launch.js`)
+
+1. `manifest.json` has the name, standalone display, theme colour and real
+   192 and 512 px PNG icons (plus a maskable one and a 180 px iPhone icon);
+   every page links it and loads `js/app.js`.
+2. Chrome's own installability check (the one Lighthouse used) finds no
+   errors, in a normal (not incognito) profile.
+3. The service worker saves pages, CSS and JS, never anything from Supabase
+   or a CDN; a new deploy shows straight away; offline, a saved page opens.
+4. First visit to the feed shows the "How Dumpy works" card; Got it closes it
+   for good, and then the install hint appears: an Install button on Android
+   (Chrome's prompt, faked), "tap Share, then Add to Home Screen" on iPhone,
+   nothing inside the home-screen app or for signed-out visitors.
+5. Signing in with the code from the email: too short, wrong, then right.
+6. The Cloudflare beacon loads only with a token and only on the live host,
+   and sets no cookies.
+7. The poster shows the QR code, the three steps and no society name, and
+   prints as exactly one A4 page.
+
+Screenshots go to `docs/screenshots/stage-11/`.

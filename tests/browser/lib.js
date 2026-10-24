@@ -60,6 +60,7 @@ function failed() { return failures; }
 
 const storageLog = [];   // every upload the fake Storage accepted or refused
 const otpCalls = [];
+const extraUsers = []; // people a test adds, so the code sign-in knows them
 // Tests can make the next N uploads fail as if the connection dropped.
 const faults = { dropUploads: 0 };
 
@@ -99,6 +100,17 @@ async function wire(context) {
     if (u.pathname === '/auth/v1/otp') {
       otpCalls.push({ body: req.postDataJSON(), redirect: u.searchParams.get('redirect_to') });
       return json(200, {});
+    }
+    // Signing in with the code from the email (stage 11). The test code is
+    // 123456; anything else is refused the way Supabase refuses it.
+    if (u.pathname === '/auth/v1/verify' && req.method() === 'POST') {
+      const b = req.postDataJSON();
+      const user = Object.values(USERS).concat(extraUsers).find((x) => x.email === b.email);
+      otpCalls.push({ verify: b });
+      if (!user || b.token !== '123456') return json(403, { code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' });
+      const now = Math.floor(Date.now() / 1000);
+      return json(200, { access_token: jwt(user), token_type: 'bearer', expires_in: 3600, expires_at: now + 3600, refresh_token: 'test-refresh',
+        user: { id: user.id, aud: 'authenticated', role: 'authenticated', email: user.email, app_metadata: { provider: 'email' }, user_metadata: {}, created_at: new Date().toISOString() } });
     }
     if (u.pathname === '/auth/v1/user') {
       if (!isJwt) return json(401, { msg: 'no' });
@@ -197,5 +209,5 @@ const PHONE = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, isM
 module.exports = {
   S, WORK, SITE, SUPA, USERS, SOCIETY, PHONE, STORE,
   jwt, decode, sql, sqlTry, check, failed, wire, magicLink, settle, noSideScroll, smallTargets, shooter,
-  otpCalls, storageLog, faults,
+  otpCalls, storageLog, faults, extraUsers,
 };

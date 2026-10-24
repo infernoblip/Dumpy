@@ -7,6 +7,7 @@ Dumpy is a mobile-first website where residents of a housing society give away u
 - Keep all styles in the one file `css/style.css`. Put scripts in `js/`, extra pages in `pages/`, images and icons in `assets/`.
 - The backend is Supabase: Auth (email magic link), Postgres and Storage. Load the Supabase JS client v2 from a CDN with an exact pinned version (for example `@supabase/supabase-js@2.45.4`), never `@2` or `latest`.
 - Hosting is Cloudflare (a Worker serving static assets, configured in `wrangler.jsonc`), deployed straight from this repo with no build step. `main` is production at https://dumpy.infernicustrap.workers.dev/; every pull request gets a preview URL. If you add a file to the repo that should not be public on the website, list it in `.assetsignore`.
+- Every page links `manifest.json` and the PNG `apple-touch-icon`, and loads `js/app.js` last (service worker, install hint, visit stats). When you add a page or a script, also add it to the `SHELL` list in `sw.js`. The service worker must never cache Supabase or other sites' responses.
 - Database changes go in `supabase/migrations/` as SQL files. Never change another stage's tables without saying so in your pull request.
 
 ## Mobile first

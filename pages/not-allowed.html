@@ -9,10 +9,12 @@
   <meta name="description" content="What can't be given away or sold on Dumpy.">
   <title>Not allowed · Dumpy</title>
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="manifest" href="../manifest.json">
+  <meta name="apple-mobile-web-app-title" content="Dumpy">
   <link rel="stylesheet" href="../css/style.css">
 </head>
-<body data-page="not-allowed">
+<body data-page="not-allowed" data-root="../">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
     <div class="app-header__inner">
@@ -41,5 +43,6 @@
       if (document.referrer.indexOf(location.origin) === 0 && history.length > 1) { e.preventDefault(); history.back(); }
     });
   </script>
+  <script defer src="../js/app.js"></script>
 </body>
 </html>

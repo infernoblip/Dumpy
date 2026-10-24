@@ -980,3 +980,123 @@ body[data-auth="loading"]::after {
 .small { font-size: 0.875rem; }
 .center { text-align: center; }
 [hidden] { display: none !important; }
+
+/* ---------- Launch (stage 11): tip card, install hint, poster ---------- */
+.tip-card {
+  margin-bottom: var(--space);
+  padding: var(--space);
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+}
+.tip-card__title { margin: 0 0 var(--space-3); font-size: 1.0625rem; }
+.tip-card__list { list-style: none; margin: 0 0 var(--space); padding: 0; font-size: 0.9375rem; }
+.tip-card__list li { display: flex; align-items: flex-start; gap: var(--space-3); }
+.tip-card__list li + li { margin-top: var(--space-3); }
+.tip-card__list .badge, .tip-card__icon { flex: none; min-width: 52px; justify-content: center; margin-top: 1px; }
+.tip-card__icon { display: inline-flex; color: var(--brand); }
+.tip-card__icon svg { width: 24px; height: 24px; }
+
+.install-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space);
+  padding: var(--space-3) var(--space);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.9375rem;
+}
+.install-hint__icon { flex: none; width: 24px; height: 24px; color: var(--brand); }
+.install-hint__text { flex: 1 1 200px; margin: 0; }
+.install-hint__share { width: 18px; height: 18px; vertical-align: -3px; color: var(--info); }
+.install-hint__actions { display: flex; gap: var(--space-2); margin-left: auto; }
+
+/* Poster: an A4 sheet. Sizes use cqw (1% of the sheet's width), so the
+   same layout shows shrunk on a phone and full size on paper. */
+.poster-page { background: var(--surface-2); }
+.poster-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space);
+}
+.poster-tools__text { flex: 1; margin: 0; font-size: 0.875rem; color: var(--muted); }
+.poster-tools .btn { flex: none; }
+
+.poster {
+  container-type: inline-size;
+  width: calc(100% - 2 * var(--space));
+  max-width: 210mm;
+  aspect-ratio: 210 / 297;
+  margin: 0 auto var(--space-6);
+  padding: 8cqw 8cqw 6cqw;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  background: #fff;
+  color: #17201b;
+  box-shadow: var(--shadow);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.poster__head { display: flex; align-items: center; gap: 4cqw; }
+.poster__logo { width: 17cqw; height: 17cqw; flex: none; }
+.poster__title { margin: 0; font-size: 13cqw; line-height: 1; color: #1f7a4d; letter-spacing: -0.02em; }
+.poster__tag { margin: 1cqw 0 0; font-size: 3.6cqw; line-height: 1.25; font-weight: 600; }
+.poster__lead { margin: 0; font-size: 3.6cqw; line-height: 1.4; }
+.poster__write { display: flex; gap: 3cqw; }
+.poster__box {
+  flex: 3;
+  height: 13cqw;
+  border: 0.5cqw dashed #1f7a4d;
+  border-radius: 2.5cqw;
+  padding: 1.2cqw 2.5cqw;
+  font-size: 2.6cqw;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4d5a52;
+}
+.poster__box--code { flex: 2; }
+.poster__scan { display: flex; flex-direction: column; align-items: center; gap: 2cqw; }
+.poster__qr { width: 44cqw; height: 44cqw; padding: 3cqw; border: 0.6cqw solid #1f7a4d; border-radius: 3cqw; background: #fff; }
+.poster__qr svg { display: block; width: 100%; height: 100%; }
+.poster__qr--missing { display: grid; place-items: center; text-align: center; font-size: 2.6cqw; }
+.poster__url { margin: 0; font-size: 3cqw; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
+.poster__steps { list-style: none; counter-reset: pstep; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3cqw; }
+.poster__steps li { counter-increment: pstep; font-size: 3cqw; line-height: 1.3; }
+.poster__steps li::before {
+  content: counter(pstep);
+  display: grid;
+  place-items: center;
+  width: 8cqw;
+  height: 8cqw;
+  margin-bottom: 1.5cqw;
+  border-radius: 50%;
+  background: #1f7a4d;
+  color: #fff;
+  font-size: 4.4cqw;
+  font-weight: 800;
+}
+.poster__steps strong { display: block; font-size: 3.6cqw; color: #1f7a4d; }
+.poster__foot { margin: 0; padding-top: 2.5cqw; border-top: 0.3cqw solid #d9e0db; font-size: 2.4cqw; color: #4d5a52; text-align: center; }
+
+@page { size: A4; margin: 0; }
+@media print {
+  .poster-page { background: #fff; }
+  .poster-tools, .skip-link { display: none !important; }
+  .poster {
+    width: 210mm;
+    height: 296mm; /* a hair under A4, so rounding never spills onto a second page */
+    max-width: none;
+    aspect-ratio: auto;
+    margin: 0;
+    box-shadow: none;
+    break-after: avoid;
+  }
+}

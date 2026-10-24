@@ -9,7 +9,9 @@
   <meta name="description" content="Dumpy society admin.">
   <title>Society admin · Dumpy</title>
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="manifest" href="../manifest.json">
+  <meta name="apple-mobile-web-app-title" content="Dumpy">
   <link rel="stylesheet" href="../css/style.css">
 </head>
 <body data-access="admin" data-page="admin" data-root="../" class="has-nav">
@@ -29,6 +31,7 @@
         <button type="button" class="btn btn--outline btn--sm" id="copy-code">Copy</button>
       </div>
       <p class="hint">Share this with neighbours. Anyone with it can ask to join, and you approve each person below.</p>
+      <a class="notice notice--link" href="poster.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg><span>Print a poster with a QR code for the notice board</span></a>
     </section>
     <section class="section" aria-labelledby="pending-h">
       <div class="section__head"><h2 id="pending-h">Waiting to join</h2><span class="status status--pending" id="pending-count" hidden></span></div>
@@ -84,5 +87,6 @@
   <script defer src="../js/render.js"></script>
   <script defer src="../js/societies.js"></script>
   <script defer src="../js/moderation.js"></script>
+  <script defer src="../js/app.js"></script>
 </body>
 </html>
