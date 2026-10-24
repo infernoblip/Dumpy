@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="A poster to put up in your society, with a QR code to Dumpy.">
+  <title>Poster · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="manifest" href="../manifest.json">
+  <meta name="apple-mobile-web-app-title" content="Dumpy">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-page="poster" data-root="../" class="poster-page">
+  <a class="skip-link" href="#poster">Skip to poster</a>
+  <div class="poster-tools">
+    <a class="icon-btn" href="../index.html" aria-label="Back to Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+    <p class="poster-tools__text">Print on one A4 sheet, then write your society's name and invite code in the boxes.</p>
+    <button type="button" class="btn btn--primary" id="print">Print</button>
+  </div>
+  <main id="poster" class="poster" aria-label="Dumpy poster">
+    <header class="poster__head">
+      <img class="poster__logo" src="../assets/icon-512.png" alt="">
+      <div>
+        <h1 class="poster__title">Dumpy</h1>
+        <p class="poster__tag">Give away or sell your extra stuff to neighbours</p>
+      </div>
+    </header>
+
+    <p class="poster__lead">Too much stuff at home? Need a chair, a cooler, some books? Swap with the people in your own society. Most things are <strong>free</strong>.</p>
+
+    <div class="poster__write">
+      <div class="poster__box"><span>Our society</span></div>
+      <div class="poster__box poster__box--code"><span>Invite code</span></div>
+    </div>
+
+    <div class="poster__scan">
+      <div class="poster__qr" id="qr" role="img" aria-label="QR code that opens Dumpy"></div>
+      <p class="poster__url" id="url"></p>
+    </div>
+
+    <ol class="poster__steps">
+      <li><strong>Sign in</strong> with your email. No password.</li>
+      <li><strong>Join</strong> with the invite code above.</li>
+      <li><strong>Post or grab</strong> items, delivered to your flat.</li>
+    </ol>
+
+    <p class="poster__foot">Free to use. Paid items are settled between neighbours by UPI or cash: Dumpy never handles money.</p>
+  </main>
+  <script defer src="../js/config.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
+  <script defer src="../js/poster.js"></script>
+  <script defer src="../js/app.js"></script>
+</body>
+</html>
