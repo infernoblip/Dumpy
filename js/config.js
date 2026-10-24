@@ -10,5 +10,5 @@ window.DUMPY_CONFIG = {
   siteUrl: "https://dumpy.infernicustrap.workers.dev/",
   // Cloudflare Web Analytics site token (public; no cookies). Empty = off.
   // How to get it: docs/stage-11-setup.md.
-  analyticsToken: ""
+  analyticsToken: "d1b5889dbf7d4446b89cf8200514c17e"
 };

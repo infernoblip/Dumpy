@@ -213,9 +213,9 @@ const pngSize = (file) => { const b = fs.readFileSync(file); return [b.readUInt3
     return { hit, cookies: cookies.length };
   }
   const cfg = fs.readFileSync(path.join(ROOT, 'js/config.js'), 'utf8');
-  check(!(await beaconLoads(null)).hit, 'no token set: no analytics script');
-  check(!(await beaconLoads(cfg.replace('analyticsToken: ""', 'analyticsToken: "test-token"'))).hit, 'token set but not the live host (a preview): no analytics script');
-  const live = await beaconLoads(cfg.replace('analyticsToken: ""', 'analyticsToken: "test-token"').replace(/siteUrl: "[^"]*"/, 'siteUrl: "http://localhost:8000/"'));
+  check(!(await beaconLoads(cfg.replace(/analyticsToken: "[^"]*"/, 'analyticsToken: ""').replace(/siteUrl: "[^"]*"/, 'siteUrl: "http://localhost:8000/"'))).hit, 'no token set, even on the live host: no analytics script');
+  check(!(await beaconLoads(cfg.replace(/analyticsToken: "[^"]*"/, 'analyticsToken: "test-token"'))).hit, 'token set but not the live host (a preview): no analytics script');
+  const live = await beaconLoads(cfg.replace(/analyticsToken: "[^"]*"/, 'analyticsToken: "test-token"').replace(/siteUrl: "[^"]*"/, 'siteUrl: "http://localhost:8000/"'));
   check(live.hit && live.cookies === 0, 'token set on the live host: the Cloudflare beacon loads, and no cookies are set');
 
   // 7. Poster: QR code, no society name, one A4 page.
