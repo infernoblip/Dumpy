@@ -23,6 +23,14 @@
   <main id="main" class="page">
     <p class="notice" id="posted-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span></span></p>
     <article id="item"></article>
+    <section class="section stack-sm share" id="share-box" aria-labelledby="share-h" hidden>
+      <h2 id="share-h">Tell a neighbour</h2>
+      <div class="btn-row">
+        <a class="btn btn--outline" id="share-wa" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3 21l2-5.5A8.5 8.5 0 1 1 21 11.5z"/></svg>Share on WhatsApp</a>
+        <button type="button" class="btn btn--outline" id="share-more" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>More</button>
+      </div>
+      <p class="small muted">Only members of your society can open the link.</p>
+    </section>
     <p class="notice notice--warn" id="sent-note" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Request sent. If the owner picks you, their flat and phone show up here and in <a href="my-items.html#requests">My items</a>.</span></p>
   </main>
   <div class="action-bar" id="action-bar">
@@ -52,7 +60,11 @@
   <script defer src="../js/supabase.js"></script>
   <script defer src="../js/auth.js"></script>
   <script defer src="../js/data.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
+  <script defer src="../js/pay.js"></script>
   <script defer src="../js/render.js"></script>
+  <script defer src="../js/delivery.js"></script>
+  <script defer src="../js/notify.js"></script>
   <script defer src="../js/moderation.js"></script>
 </body>
 </html>

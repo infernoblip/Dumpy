@@ -22,6 +22,10 @@ migrations/            Schema, functions and rules, applied oldest first
 seed.sql               Demo Society, two demo people, five demo items
 snippets/              One-off SQL for the dashboard (create-society.sql, remove-demo-data.sql)
 tests/isolation_test.sql   Proves the rules (runs in one transaction, rolled back)
+tests/delivery_test.sql    Proves the stage 7 delivery rules (same way)
+tests/payments_test.sql    Stage 8 payment rules, same way
+tests/notifications_test.sql   Proves who gets which email (stage 9, rolled back)
+functions/send-email/  Edge Function that sends notification emails (stage 9)
 tests/local/           Runs everything on plain Postgres without Docker
 config.toml            Local Supabase CLI settings (not used by the live project)
 ```
@@ -36,10 +40,11 @@ societies.
 |---|---|---|---|
 | `societies` | name, `invite_code` | approved members | admins: name, invite code |
 | `memberships` | person, society, `role` member/admin, `status` pending/approved/suspended | yourself; admins of that society | admins (not their own row); you can leave unless suspended |
-| `profiles` | `display_name`, `tower`, and private `flat`, `phone`, `upi_id` | name and tower: neighbours in an approved society, and admins of a society you asked to join | yourself |
+| `profiles` | `display_name`, `tower`, and private `flat`, `phone`, `upi_id`, `email_notifications` | name and tower: neighbours in an approved society, and admins of a society you asked to join | yourself |
 | `listings` | title, description, category, condition, `price_inr` (0 = Free), status, `expires_at` | approved members: available, reserved, done; also the owner and admins: withdrawn, expired, hidden | owner (cannot hide, cannot edit a hidden item); admins |
 | `listing_photos` | `storage_path`, `position` | anyone who can see the listing | listing owner |
-| `requests` | requester, message, status | requester; listing owner | requester: edit message or cancel while pending; owner: decline |
+| `requests` | requester, message, status, `paid_at` (stage 8: owner marked it paid) | requester; listing owner | requester: edit message or cancel while pending; owner: decline |
+| `notifications` | one row per email: recipient, `kind`, item, `status` pending/sending/sent/failed/skipped (stage 9) | nobody on the website | only the database's triggers and the `send-email` function |
 | `reports` | item, reporter, `reason` not_allowed/spam/offensive/other, optional `note`, `status` open/actioned/dismissed | the reporter; admins of that society (never the item's owner) | members: file one report per item on someone else's available or reserved item; admins: close through `resolve_reports` |
 
 Nothing is ever deleted from the website except photos and memberships.
@@ -86,6 +91,7 @@ permission at all**, not even for the person they belong to. So:
 | `resolve_reports(p_listing_id, p_hide)` | Admin of the item's society only. `p_hide` true hides the item and marks its open reports `actioned`; false marks them `dismissed` and leaves the item up (stage 10) |
 | `renew_listing(p_listing_id)` | Owner only: an `expired` or `withdrawn` item goes back to `available` for 30 more days, dated by the database clock (stage 10) |
 | `get_contact(p_listing_id)` | The other person's name, tower, flat and phone, for the owner and the accepted requester of a reserved or handed-over item; nobody else gets a row. `upi_id` is filled only when the other person is the owner of a paid item (stage 8 uses it) |
+| `set_paid(p_listing_id, p_paid)` | Owner only, paid item that is reserved or handed over: marks the accepted request paid (`requests.paid_at`) or not. Returns the new `paid_at`. Nothing else about a payment is stored (stage 8) |
 
 ### Moderation and expiry (stage 10)
 
@@ -99,6 +105,23 @@ item; only available items posted by someone else). Moving an item into or
 out of `reserved` or `done` is **not** a plain update: a trigger refuses it,
 so the item's status and its accepted request always agree. Use the three
 functions above. Admins can still hide any item.
+
+## Emails (stage 9)
+
+Triggers on `requests` (and on stage 7's `deliveries`) add a row to
+`notifications` for each person who should hear about a change, skipping
+anyone whose `profiles.email_notifications` is false or who is no longer an
+approved member. Each new row calls the `send-email` Edge Function
+(`supabase/functions/send-email`) through `pg_net`, at the address stored in
+the Vault secret `send_email_url`. The function calls `claim_notification(id)`
+(pending to sending, once only) and `finish_notification(id, error)`; both
+are for the service role only. The website just flips
+`profiles.email_notifications` (Profile page). Setup: [docs/stage-9-setup.md](../docs/stage-9-setup.md).
+
+A table that should send emails gets a trigger that calls
+`public.queue_notification(kind, listing_id, recipient_id, actor_id, request_id, delivery_id)`;
+add the new `kind` to the check on `notifications.kind` and to `buildEmail` in
+the function's `handler.js`.
 
 ## Photos
 
@@ -122,6 +145,9 @@ Show photos with `createSignedUrl` (the bucket has no public URLs).
 - **Locally with Docker:** `supabase start`, then `supabase db reset` (applies
   migrations and seed), then
   `psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/isolation_test.sql`.
+- **Notifications:** `tests/notifications_test.sql` runs the same way
+  (SQL Editor or psql) and is part of `tests/local/run.sh`. The function's own
+  tests: `node tests/functions/send-email.test.mjs` (from the repo root).
 - **Locally without Docker:** `bash supabase/tests/local/run.sh` needs only
   Postgres 15+ installed. It starts a throwaway database, adds a small
   stand-in for Supabase's `auth` and `storage` schemas, then applies the

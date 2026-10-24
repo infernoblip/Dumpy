@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Delivery jobs from your neighbours on Dumpy.">
+  <title>Delivery jobs · Dumpy</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/favicon.svg">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body data-access="member" data-page="jobs" data-root="../" class="has-nav">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="icon-btn" href="profile.html" aria-label="Back to Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+      <h1 class="app-header__title">Delivery jobs</h1>
+    </div>
+  </header>
+  <main id="main" class="page">
+    <div class="card-box stack-sm" id="jobs-off" hidden>
+      <p><strong>You are not signed up as a helper.</strong></p>
+      <p class="small muted">Helpers carry items between towers for neighbours, for a tip the neighbours offer. Switch on "I can help deliver" in your profile to see open jobs.</p>
+      <a class="btn btn--primary btn--block" href="profile.html#helper-box">Go to Profile</a>
+    </div>
+    <section class="section stack-sm" id="my-jobs-section" aria-labelledby="my-jobs-h" hidden>
+      <h2 id="my-jobs-h">Your jobs</h2>
+      <ul class="list" id="my-jobs"></ul>
+    </section>
+    <section class="section stack-sm" id="open-jobs-section" aria-labelledby="open-jobs-h" hidden>
+      <h2 id="open-jobs-h">Open jobs</h2>
+      <p class="small muted">Take one you can do. You see the towers now; flats and phone numbers show once the job is yours. Any tip is paid to you directly; Dumpy never handles money.</p>
+      <ul class="list" id="open-jobs"></ul>
+    </section>
+  </main>
+  <nav class="bottom-nav" aria-label="Main">
+    <ul>
+      <li><a href="../index.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</a></li>
+      <li><a href="../pages/post.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8M8 12h8"/></svg></span>Post</a></li>
+      <li><a href="../pages/my-items.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16l-1.5 12.5a2 2 0 0 1-2 1.5h-9a2 2 0 0 1-2-1.5z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg></span>My items</a></li>
+      <li><a href="../pages/profile.html"><span class="bottom-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Profile</a></li>
+    </ul>
+  </nav>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+  <script defer src="../js/config.js"></script>
+  <script defer src="../js/supabase.js"></script>
+  <script defer src="../js/auth.js"></script>
+  <script defer src="../js/data.js"></script>
+  <script defer src="../js/render.js"></script>
+  <script defer src="../js/delivery.js"></script>
+</body>
+</html>
