@@ -86,6 +86,7 @@
   }
 
   /* ---------- Data ---------- */
+  var feeAsk = null;
   async function rpc(name, args) { return check(await db.rpc(name, args)); }
   var api = {
     get: async function (listingId) { return (await rpc("get_delivery", { p_listing_id: listingId }) || [])[0] || null; },
@@ -98,6 +99,13 @@
     delivered: function (id) { return rpc("mark_delivered", { p_delivery_id: id }); },
     openJobs: function (societyId) { return rpc("open_delivery_jobs", { p_society_id: societyId }); },
     myJobs: function (societyId) { return rpc("my_delivery_jobs", { p_society_id: societyId }); },
+    // Today's Dumpy fee for a helper delivery (0 = off). Asked once per page;
+    // if it fails (for example the fee migration is not applied yet), it is 0.
+    fee: function () {
+      if (!feeAsk) feeAsk = db.rpc("delivery_fee").then(function (r) { return r.error ? 0 : +r.data || 0; }, function () { return 0; });
+      return feeAsk;
+    },
+    markFeePaid: function (id) { return rpc("mark_delivery_fee_paid", { p_delivery_id: id }); },
     isHelper: async function (societyId) {
       var rows = check(await db.from("delivery_helpers").select("user_id").eq("society_id", societyId).limit(1));
       return rows.length > 0;
@@ -157,12 +165,68 @@
     }
     if (d && (d.status === "open" || d.status === "claimed")) showPlan(box, d);
     else if (d && d.status === "delivered") showDelivered(box, d);
+    else if (box.dataset.listingStatus === "done") box.innerHTML = ""; // handed over without a delivery plan
     else showForm(box, null);
   }
 
   function showDelivered(box, d) {
     box.innerHTML = '<div class="card-box stack-sm"><div class="delivery__head"><h3>Delivery</h3>' + pill("delivered") + "</div>" +
-      '<p class="small muted">' + (d.helper_name ? "Brought over by " + esc(d.helper_name) + "." : "It has reached its new home.") + "</p></div>";
+      '<p class="small muted">' + (d.helper_name ? "Brought over by " + esc(d.helper_name) + "." : "It has reached its new home.") + "</p>" +
+      feeBox(d, box.dataset.other) + "</div>";
+    var paid = box.querySelector('[data-dact="feepaid"]');
+    if (paid) paid.addEventListener("click", async function () {
+      if (!confirm("Mark the " + rupees(d.fee_inr) + " Dumpy fee as paid? Only do this once the money has gone from your UPI app, or you have paid in cash.")) return;
+      R.setBusy(this, true, "Saving…");
+      try { await api.markFeePaid(d.id); }
+      catch (err) { R.setBusy(this, false); alert(R.problem(err)); return; }
+      load(box);
+    });
+  }
+
+  /* ---------- Dumpy's delivery fee ---------- */
+  function rupees(n) { return "₹" + Number(n).toLocaleString("en-IN"); }
+  function hasFee(d) { return d && d.mode === "helper" && d.fee_inr > 0 && d.fee_status && d.fee_status !== "none"; }
+
+  // One line for the plan card and the form: what the fee is and who pays.
+  function feeLine(fee, role, other) {
+    var who = role === "taker" ? "You pay" : esc(other || "The taker") + " pays";
+    return who + " Dumpy a <strong>" + rupees(fee) + " delivery fee</strong> by UPI, once the item arrives. " +
+      '<span class="muted">No fee if the delivery is called off.</span>';
+  }
+
+  // After a helper delivered it: the taker pays the fee to Dumpy's UPI ID,
+  // with the same Pay link, QR and Copy as item payments (js/pay.js).
+  function feeBox(d, other) {
+    if (!hasFee(d) || d.fee_status === "upcoming") return "";
+    var price = rupees(d.fee_inr);
+    var hid = "fee-h-" + esc(d.id);
+    var head = '<div class="pay" data-fee="' + esc(d.id) + '" role="group" aria-labelledby="' + hid + '">' +
+      '<p class="pay__title" id="' + hid + '">Dumpy delivery fee · ' + price + "</p>";
+    if (!d.fee_i_pay) {
+      var said = { due: "not paid yet", marked: "marked as paid", confirmed: "paid", waived: "waived" }[d.fee_status] || "";
+      return head + '<p class="small muted">' + esc(other || "The taker") + " pays this to Dumpy" + (said ? " (" + said + ")" : "") + ".</p></div>";
+    }
+    if (d.fee_status === "confirmed") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Dumpy got your fee. Thank you!</span></p></div>";
+    if (d.fee_status === "waived") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Nothing to pay: this fee was waived.</span></p></div>";
+    if (d.fee_status === "marked") {
+      return head + '<p class="pay__done">' + ICON_CHECK + "<span>You marked this as paid. Thanks for keeping Dumpy going!</span></p>" +
+        '<p class="small muted">Reference ' + esc(d.fee_ref) + ". Dumpy checks it arrived.</p></div>";
+    }
+    var upi = d.fee_upi_id;
+    var P = Dumpy.pay;
+    var href = upi && P ? P.link(upi, d.fee_payee_name || "Dumpy", d.fee_inr, "delivery " + d.fee_ref) : null;
+    var qr = href ? P.qrSvg(href) : "";
+    return head +
+      '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's " + price +
+        " delivery fee. Settle any tip directly with " + esc(d.helper_name || "the helper") + " as you agreed.</p>" +
+      (href ? '<a class="btn btn--primary btn--lg btn--block" href="' + esc(href) + '" data-fee-link>Pay ' + price + " to Dumpy</a>" : "") +
+      (upi ? '<div class="pay__upi"><p><span class="small muted">UPI ID</span><br><span class="pay__id" translate="no">' + esc(upi) + "</span></p>" +
+        '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>" : "") +
+      (qr ? '<details class="pay__qr" data-pay-qr><summary>Show QR code</summary>' +
+        '<figure role="img" aria-label="QR code to pay Dumpy ' + price + ' by UPI">' + qr + "</figure>" +
+        '<p class="small muted">Scan with any UPI app on another phone.</p></details>' : "") +
+      '<p class="small muted">Put reference <strong translate="no">' + esc(d.fee_ref) + "</strong> in the payment note (Pay fills it in). Then tap I've paid.</p>" +
+      '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button></div>';
   }
 
   // An arrangement exists: show it, with Change and Cancel.
@@ -175,7 +239,8 @@
       '<p class="delivery__plan"><strong>' + esc(modeText(d.mode, role, other, true)) + "</strong><br>" + esc(slotText(d.slot_start)) + "</p>";
     if (d.mode === "helper") {
       html += '<p class="small">' + (d.tip_note ? "Tip for the helper: <strong>" + esc(d.tip_note) + "</strong>. " : "No tip agreed. ") +
-        '<span class="muted">Settle any tip directly with the helper. Dumpy never collects it.</span></p>';
+        '<span class="muted">Settle any tip directly with the helper. Dumpy never collects it.</span></p>' +
+        (hasFee(d) ? '<p class="small" data-fee-line>' + feeLine(d.fee_inr, role, other) + "</p>" : "");
       if (d.status === "claimed") {
         html += '<div class="person"><span class="avatar" aria-hidden="true">' + initial(d.helper_name) + "</span>" +
           '<div><p class="person__name">' + esc(d.helper_name || "A neighbour") + '</p><p class="person__meta">Helper' +
@@ -243,6 +308,7 @@
         '<label class="label" for="' + n + '-tip">Tip for the helper <span class="label__opt">(optional)</span></label>' +
         '<input class="input" id="' + n + '-tip" maxlength="60" placeholder="For example: ₹30 cash" value="' + esc(d ? d.tip_note : "") + '" aria-describedby="' + n + '-tip-hint">' +
         '<span class="hint" id="' + n + '-tip-hint">Whatever you two agree. Pay the helper directly; Dumpy never collects it.</span>' +
+      '<p class="small notice" data-fee-note hidden></p>' +
       "</div>" +
       '<p class="notice notice--error" role="alert" data-err hidden>' + ICON_ALERT + "<span></span></p>" +
       '<div class="btn-row">' + (d ? '<button type="button" class="btn btn--outline" data-dact="back">Keep as is</button>' : "") +
@@ -274,6 +340,15 @@
     });
     drawSlots();
     drawTip();
+    // Dumpy's fee for a helper delivery. An already-booked helper delivery
+    // keeps the fee it was booked with.
+    var keptFee = d && d.mode === "helper" ? d.fee_inr || 0 : null;
+    (keptFee !== null ? Promise.resolve(keptFee) : api.fee()).then(function (fee) {
+      var note = form.querySelector("[data-fee-note]");
+      if (!fee || !note) return;
+      note.innerHTML = "<span>" + feeLine(fee, role, other) + "</span>";
+      note.hidden = false;
+    });
 
     var back = form.querySelector('[data-dact="back"]');
     if (back) back.addEventListener("click", function () { showPlan(box, d); });
@@ -418,6 +493,8 @@
   var ICON_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3 21l2-5.5A8.5 8.5 0 1 1 21 11.5z"/></svg>';
   var ICON_PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>';
   var ICON_ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>';
+  var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
+  var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>';
   var ICON_ROUTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>';
 
   Dumpy.delivery = { mount: mount, api: api, slotText: slotText };

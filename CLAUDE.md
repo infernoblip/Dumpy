@@ -29,6 +29,7 @@ Dumpy is a mobile-first website where residents of a housing society give away u
 ## Money
 - A price of 0 means Free.
 - Dumpy never collects or holds money. Paid items are settled between neighbours by UPI or cash.
+- Dumpy's only income is a flat delivery fee on helper deliveries, set on Run Dumpy and paid by the taker by UPI straight to the platform UPI ID after delivery. Tips still go straight to helpers.
 
 ## Accounts you do not have
 - Anything that needs Arihaan's accounts (Cloudflare, Supabase, domain registrar, email provider): do not guess credentials. Write exact step-by-step instructions for Arihaan in the pull request (and in `docs/` if they are long).

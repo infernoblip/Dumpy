@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#e9dec7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#18221b" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="Run Dumpy: approve new societies.">
+  <meta name="description" content="Run Dumpy: approve new societies and manage delivery fees.">
   <title>Run Dumpy · Dumpy</title>
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
@@ -31,6 +31,37 @@
       <a class="btn btn--primary" href="profile.html">Back to Profile</a>
     </div>
     <div id="platform" hidden>
+      <section class="section" aria-labelledby="fees-h" id="fees" hidden>
+        <div class="section__head"><h2 id="fees-h">Delivery fees</h2><span class="status status--pending" id="fees-waiting" hidden></span></div>
+        <p class="hint" style="margin:0 0 var(--space-3)">When a neighbour helper delivers an item, the taker pays Dumpy this fee by UPI, on top of any tip they agreed with the helper. Owners and takers who carry items themselves pay nothing.</p>
+        <dl class="fee-totals" id="fee-totals" aria-label="Fee totals"></dl>
+        <form id="fee-form" class="card-box stack" novalidate>
+          <h3>Fee settings</h3>
+          <div class="field">
+            <label class="label" for="fee-amount">Fee per helper delivery</label>
+            <div class="input-prefix">
+              <span class="input-prefix__sign" aria-hidden="true">₹</span>
+              <input class="input" id="fee-amount" type="number" inputmode="numeric" min="0" max="500" step="1" placeholder="20" aria-describedby="fee-amount-hint">
+            </div>
+            <span class="hint" id="fee-amount-hint">0 turns the fee off. Changes apply to new bookings only.</span>
+          </div>
+          <div class="field">
+            <label class="label" for="fee-upi">Your UPI ID</label>
+            <input class="input" id="fee-upi" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="128" placeholder="name@bank" aria-describedby="fee-upi-hint">
+            <span class="hint" id="fee-upi-hint">Fees are paid straight to this ID. Only takers who owe a fee see it.</span>
+          </div>
+          <div class="field">
+            <label class="label" for="fee-name">Name shown in UPI apps</label>
+            <input class="input" id="fee-name" maxlength="50" placeholder="Dumpy">
+          </div>
+          <p class="notice notice--error" id="fee-error" role="alert" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg><span></span></p>
+          <button type="submit" class="btn btn--primary btn--block">Save fee settings</button>
+          <p class="notice" id="fee-saved" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg><span>Saved.</span></p>
+        </form>
+        <h3 class="fee-list-h">Fees from deliveries</h3>
+        <p class="hint" style="margin:0 0 var(--space-3)">Check your UPI app for the reference (DLV-…) in the payment note, then confirm.</p>
+        <ul class="list" id="fee-list"><li class="empty"><p>Loading…</p></li></ul>
+      </section>
       <section class="section" aria-labelledby="waiting-h">
         <div class="section__head"><h2 id="waiting-h">New societies waiting</h2><span class="status status--pending" id="waiting-count" hidden></span></div>
         <p class="hint" style="margin:0 0 var(--space-3)">Approve creates the society and makes the person who asked its admin. Their neighbours then join with its invite code.</p>
@@ -54,6 +85,7 @@
   <script defer src="../js/data.js"></script>
   <script defer src="../js/render.js"></script>
   <script defer src="../js/societies.js"></script>
+  <script defer src="../js/fees.js"></script>
   <script defer src="../js/app.js"></script>
 </body>
 </html>

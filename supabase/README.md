@@ -23,6 +23,7 @@ seed.sql               Demo Society, two demo people, five demo items
 snippets/              One-off SQL for the dashboard (create-society.sql, make-platform-admin.sql, remove-demo-data.sql)
 tests/isolation_test.sql   Proves the rules (runs in one transaction, rolled back)
 tests/delivery_test.sql    Proves the stage 7 delivery rules (same way)
+tests/delivery_fee_test.sql  Proves the delivery fee rules (same way)
 tests/payments_test.sql    Stage 8 payment rules, same way
 tests/notifications_test.sql   Proves who gets which email (stage 9, rolled back)
 tests/societies_test.sql   New societies and nearby sharing (stage 12, rolled back)

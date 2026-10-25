@@ -433,8 +433,9 @@
     var hint = l.status === "done" ? "" : "Agree with " + esc(c.display_name) + " how and when it reaches " +
       (ownerView ? "their" : "your") + " flat.";
     // Stage 7: js/delivery.js fills this with the delivery plan.
-    var delivery = l.status === "reserved"
-      ? '<div data-delivery-for="' + esc(l.id) + '" data-role="' + (ownerView ? "owner" : "taker") + '" data-other="' + esc(c.display_name) + '"></div>'
+    // Once handed over it shows only a finished delivery (and Dumpy's fee, if any).
+    var delivery = l.status === "reserved" || l.status === "done"
+      ? '<div data-delivery-for="' + esc(l.id) + '" data-listing-status="' + esc(l.status) + '" data-role="' + (ownerView ? "owner" : "taker") + '" data-other="' + esc(c.display_name) + '"></div>'
       : "";
     return '<section class="section stack-sm contact" aria-labelledby="' + hid + '"><h2 id="' + hid + '">' + title + "</h2>" +
       '<div class="person"><span class="avatar" aria-hidden="true">' + initial(c.display_name) + "</span>" +
