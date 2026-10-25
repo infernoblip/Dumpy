@@ -1423,6 +1423,10 @@ a.row-card__title:hover span { text-decoration: underline; text-underline-offset
 .pay__qr figure { margin: var(--space-2) 0; width: min(240px, 100%); }
 .pay__qr svg { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); background: #fff; }
 .pay__switch { gap: var(--space-3); }
+/* One button per UPI app on phones, so Pay never lands in WhatsApp. */
+.pay__apps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.pay__apps-title { grid-column: 1 / -1; font-weight: 650; }
+.pay__apps .btn { min-width: 0; padding-left: var(--space-2); padding-right: var(--space-2); }
 
 /* Dumpy's delivery fee: a note in the delivery form, and totals on Run Dumpy. */
 [data-fee-note] { margin-top: var(--space-2); }

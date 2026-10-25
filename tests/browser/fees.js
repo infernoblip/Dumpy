@@ -40,8 +40,8 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
 
   const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   const errors = [];
-  async function personPage(user, scheme) {
-    const ctx = await browser.newContext({ ...PHONE, colorScheme: scheme || 'light' });
+  async function personPage(user, scheme, userAgent) {
+    const ctx = await browser.newContext({ ...PHONE, colorScheme: scheme || 'light', ...(userAgent ? { userAgent } : {}) });
     await wire(ctx);
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errors.push(e.message));
@@ -118,7 +118,7 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   // 5. The taker pays the fee.
   await t.reload(); await settle(t);
   await t.waitForSelector(`${box} [data-fee]`);
-  const href = await t.getAttribute(`${box} [data-fee-link]`, 'href');
+  const href = await t.getAttribute(`${box} [data-pay-link]`, 'href');
   const ref = 'DLV-' + did.replace(/-/g, '').slice(0, 6).toUpperCase();
   check(href.startsWith('upi://pay?pa=dumpy.demo@okbank&pn=Dumpy&am=20.00&cu=INR&tn=') && decodeURIComponent(href).includes('delivery ' + ref),
     `Pay opens a UPI app with ₹20 to Dumpy and the reference ${ref} in the note`);
@@ -163,7 +163,7 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   check(true, 'The taker sees the fee as received');
 
   // 7. Now the rug can have a helper. Dark mode shots.
-  const td = await personPage(TAKER, 'dark');
+  const td = await personPage(TAKER, 'dark', 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36');
   await td.goto(SITE + '/pages/item.html?id=' + RUG); await settle(td);
   await td.waitForSelector(`${box} form`);
   await td.click(`${box} label:has-text("A neighbour helper brings it")`);
@@ -175,7 +175,8 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   sql(`select public.claim_delivery('${rid}')`, HELPER.id);
   sql(`select public.mark_delivered('${rid}')`, HELPER.id);
   await td.reload(); await settle(td);
-  await td.waitForSelector(`${box} [data-fee-link]`);
+  await td.waitForSelector(`${box} [data-pay-link]`);
+  check((await td.getAttribute(`${box} [data-pay-app="PhonePe"]`, 'href')).startsWith('intent://pay?pa=dumpy.demo@okbank&pn=Dumpy&am=20.00'), 'On Android the fee box offers PhonePe and the other UPI apps');
   await shot(td, 'item-fee-due-dark');
   const bd = await personPage(BOSS, 'dark');
   await bd.goto(SITE + '/pages/platform.html'); await settle(bd);

@@ -59,6 +59,29 @@ const errors = [];
   await noSideScroll(t, 'item pay'); await smallTargets(t, 'item pay');
   await shot(t, 'item-pay-light');
 
+  // On phones, Pay offers one button per UPI app, so the phone can't hand the
+  // payment to WhatsApp. Android gets intent links naming each app's package.
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+  const query = expected.slice(expected.indexOf('?'));
+  const ta = await personPage(TAKER, { userAgent: ANDROID });
+  await ta.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(ta); await ta.waitForSelector('.pay [data-pay-app]');
+  const apps = await ta.$$eval('.pay [data-pay-app]', (els) => els.map((e) => [e.textContent.trim(), e.getAttribute('href')]));
+  check(JSON.stringify(apps.map((a) => a[0])) === '["Google Pay","PhonePe","Paytm"]', 'On Android, Pay offers Google Pay, PhonePe and Paytm');
+  check(apps[0][1] === 'intent://pay' + query + '#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end'
+    && apps[1][1].endsWith(';package=com.phonepe.app;end') && apps[2][1].endsWith(';package=net.one97.paytm;end'),
+    'Each Android button opens that app by its package, with the same payment details\n       ' + apps[0][1]);
+  check((await ta.getAttribute('[data-pay-link]', 'href')) === expected && (await ta.textContent('[data-pay-link]')).trim() === 'Other app',
+    'Other app keeps the plain upi:// link');
+  check(!(await ta.content()).includes('whatsapp://pay'), 'No button hands the payment to WhatsApp');
+  await noSideScroll(ta, 'item pay android'); await smallTargets(ta, 'item pay android');
+  await shot(ta, 'item-pay-android-light');
+  const ti = await personPage(TAKER, { userAgent: IPHONE });
+  await ti.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(ti); await ti.waitForSelector('.pay [data-pay-app]');
+  const iapps = await ti.$$eval('.pay [data-pay-app]', (els) => els.map((e) => e.getAttribute('href')));
+  check(iapps[0] === 'gpay://upi/pay' + query && iapps[1] === 'phonepe://pay' + query && iapps[2] === 'paytmmp://upi/pay' + query,
+    'On iPhone each button uses that app\'s own link');
+
   // 2. Copy UPI ID, the fallback for iPhones and phones where the link opens nothing.
   await t.click('[data-pay-copy]');
   await t.waitForFunction(() => /Copied/.test(document.querySelector('[data-pay-copy]').textContent));
