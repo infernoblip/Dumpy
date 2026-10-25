@@ -13,7 +13,8 @@ Dumpy is a mobile-first website where residents of a housing society give away u
 ## Mobile first
 - Design every page at 360 px wide first, then let it widen.
 - Tap targets are at least 44 x 44 px. No sideways scrolling, ever.
-- Use the system font stack. Support light and dark mode with `prefers-color-scheme`.
+- Use the two self-hosted fonts in `assets/fonts/` (Fraunces for titles, Literata for text) through the `--font-display` and `--font-text` tokens in `css/style.css`. Add no other web fonts. Support light and dark mode with `prefers-color-scheme`.
+- Motion is decoration: every page must work without `js/motion.js` and with `prefers-reduced-motion: reduce`.
 - Check every page you change in a 360 x 740 phone viewport before calling it done.
 
 ## Security

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#e9dec7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#18221b" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="A poster to put up in your society, with a QR code to Dumpy.">
   <title>Poster · Dumpy</title>
@@ -12,7 +12,10 @@
   <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
   <link rel="manifest" href="../manifest.json">
   <meta name="apple-mobile-web-app-title" content="Dumpy">
+  <link rel="preload" href="../assets/fonts/literata.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="../assets/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/motion.js"></script>
 </head>
 <body data-page="poster" data-root="../" class="poster-page">
   <a class="skip-link" href="#poster">Skip to poster</a>
@@ -23,7 +26,7 @@
   </div>
   <main id="poster" class="poster" aria-label="Dumpy poster">
     <header class="poster__head">
-      <img class="poster__logo" src="../assets/icon-512.png" alt="">
+      <img class="poster__logo" src="../assets/favicon.svg" alt="">
       <div>
         <h1 class="poster__title">Dumpy</h1>
         <p class="poster__tag">Give away or sell your extra stuff to neighbours</p>

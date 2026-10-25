@@ -21,7 +21,9 @@ js/supabase.js         The one shared Supabase client
 js/auth.js             Page guard: signed out, waiting for approval, member or admin
 js/data.js             Reads items, photos and people from Supabase
 js/render.js           Draws every page
+js/motion.js           Page-change and button animations (decoration only)
 assets/                Icons and images
+assets/fonts/          Fraunces and Literata, self-hosted (SIL Open Font License)
 supabase/              Database schema, rules, tests and one-off SQL snippets
 tests/browser/         End-to-end browser test of sign-in and joining
 docs/                  Setup guides
