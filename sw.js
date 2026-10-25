@@ -12,7 +12,7 @@
    - Pages are saved under one name with and without ".html", and without
      their ?query, because the host redirects /pages/item.html to /pages/item
      and the query only carries data such as an item id. */
-var CACHE = "dumpy-shell-v2";
+var CACHE = "dumpy-shell-v3";
 var WAIT_MS = 3000;
 
 var SHELL = [
@@ -44,10 +44,14 @@ var SHELL = [
   "js/app.js",
   "js/poster.js",
   "js/societies.js",
+  "js/motion.js",
   "manifest.json",
   "assets/favicon.svg",
   "assets/icon-192.png",
-  "assets/apple-touch-icon.png"
+  "assets/apple-touch-icon.png",
+  "assets/fonts/literata.woff2",
+  "assets/fonts/fraunces.woff2",
+  "assets/fonts/fraunces-italic.woff2"
 ];
 
 // One cache name per file: drop the query, "index.html" and ".html".
@@ -99,11 +103,14 @@ self.addEventListener("activate", function (event) {
 
 function offlinePage() {
   return new Response(
-    '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
-    "<title>Offline · Dumpy</title>" +
-    '<body style="font-family:system-ui,sans-serif;padding:24px;line-height:1.5">' +
+    '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<meta name="color-scheme" content="light dark"><title>Offline · Dumpy</title>' +
+    "<style>body{margin:0;padding:32px 20px;background:#f3ebdc;color:#1e2b23;font:17px/1.55 Georgia,serif;text-align:center}" +
+    "h1{font-style:italic;font-weight:600;color:#2e5a44}" +
+    "a{display:inline-block;min-height:44px;margin-top:8px;padding:11px 22px;border-radius:14px;background:#2e5a44;color:#fbf6ec;text-decoration:none;box-sizing:border-box}" +
+    "@media (prefers-color-scheme:dark){body{background:#121a15;color:#efe6d2}h1{color:#a9cf9f}a{background:#a9cf9f;color:#13201a}}</style>" +
     "<h1>You're offline</h1><p>Dumpy needs the internet to show items. Check your connection and try again.</p>" +
-    '<p><a href="/" style="display:inline-block;min-height:44px;padding:10px 16px">Try again</a></p></body>',
+    '<p><a href="/">Try again</a></p></html>',
     { status: 503, headers: { "content-type": "text/html; charset=utf-8" } }
   );
 }

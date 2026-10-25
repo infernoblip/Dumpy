@@ -173,7 +173,8 @@ function magicLink(u) {
 }
 
 async function settle(page) {
-  await page.waitForFunction(() => document.body.dataset.auth === 'ready', null, { timeout: 10000 });
+  // The body may not exist yet while the new page's <head> is still loading.
+  await page.waitForFunction(() => !!document.body && document.body.dataset.auth === 'ready', null, { timeout: 10000 });
   await page.waitForLoadState('networkidle');
 }
 async function noSideScroll(page, label) {

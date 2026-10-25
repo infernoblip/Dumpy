@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f8f5" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f1a14" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#e9dec7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#18221b" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <meta name="description" content="Dumpy: give away or sell your extra stuff to neighbours.">
   <title>Dumpy</title>
@@ -12,7 +12,10 @@
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-title" content="Dumpy">
+  <link rel="preload" href="assets/fonts/literata.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
+  <script src="js/motion.js"></script>
 </head>
 <body data-access="landing" data-page="feed" data-root="" class="has-nav">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -28,7 +31,77 @@
     </div>
   </header>
   <main id="landing" class="auth landing" hidden>
-    <img class="auth__logo" src="assets/favicon.svg" alt="" width="72" height="72">
+    <svg class="landing__art" viewBox="0 0 320 190" width="320" height="190" aria-hidden="true" focusable="false">
+      <ellipse class="f-deep" cx="160" cy="180" rx="146" ry="7"/>
+      <path class="f-soft st" d="M96 152V86a64 64 0 0 1 128 0v66z"/>
+      <circle class="f-gold" cx="194" cy="60" r="10" opacity=".8"/>
+      <path class="f-sage" d="M97 134c13-10 28-13 43-7 12 5 21 3 32-4 17-10 34-10 51 1v28H97z"/>
+      <path class="st" fill="none" d="M160 22v130M96 100h128"/>
+      <rect class="f-paper st" x="86" y="152" width="148" height="8" rx="2.5"/>
+      <path class="f-gold st" d="M150.5 152l-2-11h23l-2 11z"/>
+      <g class="sway">
+        <path class="st" fill="none" d="M160 141v-14"/>
+        <path class="f-green st" d="M160 132c-3-6-8-8-13-6 2 6 7 8 13 6z"/>
+        <path class="f-green st" d="M160 128c3-6 8-8 13-6-2 6-7 8-13 6z"/>
+      </g>
+      <rect class="f-deep st" x="20" y="94" width="66" height="82" rx="3"/>
+      <path class="st" fill="none" d="M20 121h66M20 148h66"/>
+      <rect class="f-green st" x="26" y="100" width="8" height="21" rx="1"/>
+      <rect class="f-gold st" x="35" y="104" width="7" height="17" rx="1"/>
+      <rect class="f-paper st" x="43" y="98" width="9" height="23" rx="1"/>
+      <rect class="f-sage st" x="53" y="102" width="7" height="19" rx="1"/>
+      <rect class="f-green st" x="66" y="101" width="7" height="20" rx="1" transform="rotate(-18 66 121)"/>
+      <rect class="f-sage st" x="26" y="128" width="8" height="20" rx="1"/>
+      <rect class="f-paper st" x="35" y="125" width="8" height="23" rx="1"/>
+      <circle class="f-gold st" cx="55" cy="135.5" r="7.5"/>
+      <path class="st" fill="none" d="M47.5 135.5h15M55 128c-4 4.5-4 10.5 0 15M50 147.5h10M55 143v4.5"/>
+      <rect class="f-green st" x="67" y="130" width="8" height="18" rx="1"/>
+      <rect class="f-gold st" x="76" y="132" width="6" height="16" rx="1"/>
+      <rect class="f-gold st" x="26" y="169" width="30" height="7" rx="1"/>
+      <rect class="f-paper st" x="29" y="162" width="25" height="7" rx="1"/>
+      <rect class="f-green st" x="27" y="155" width="21" height="7" rx="1"/>
+      <path class="f-sage st" d="M61 158h19l-2 18H63z"/>
+      <path class="f-paper st" d="M43 80h20l-2.5 14h-15z"/>
+      <g class="sway">
+        <path class="st" fill="none" d="M53 80c0-8-3-14-9-17M53 80c1-9 5-15 12-17M53 80c0-10 0-17-1-23M45 84c-6 3-9 9-8 17"/>
+        <path class="f-green st" d="M44 63c-1-5-5-7-9-6 1 5 5 7 9 6z"/>
+        <path class="f-green st" d="M65 63c1-5 5-7 9-6-1 5-5 7-9 6z"/>
+        <path class="f-green st" d="M52 57c-3-4-2-9 2-11 2 4 1 9-2 11z"/>
+        <path class="f-green st" d="M37 101c-4-2-5-6-3-9 4 2 5 6 3 9z"/>
+      </g>
+      <path class="f-gold st" d="M252 100h22l5 16h-32z"/>
+      <path class="st" fill="none" d="M263 116v26"/>
+      <rect class="f-green st" x="281" y="111" width="9" height="30" rx="1" transform="rotate(14 285 141)"/>
+      <circle class="f-paper st" cx="296" cy="116" r="4"/>
+      <circle class="f-paper st" cx="281" cy="116" r="4"/>
+      <circle class="f-paper st" cx="288.5" cy="125" r="10"/>
+      <ellipse class="f-tan" cx="288.5" cy="129" rx="4.5" ry="3.5"/>
+      <circle class="ink" cx="284.8" cy="122.5" r="1.2"/>
+      <circle class="ink" cx="292.2" cy="122.5" r="1.2"/>
+      <path class="f-tan st" d="M242 140l-12-12h30l12 12z"/>
+      <path class="f-tan st" d="M304 140l10-13h-30l-10 13z"/>
+      <rect class="f-tan st" x="242" y="140" width="62" height="36" rx="2"/>
+      <g transform="rotate(-6 273 160)">
+        <rect class="f-green" x="257" y="152" width="32" height="15" rx="2.5"/>
+        <text class="landing__tag" x="273" y="163" text-anchor="middle">free</text>
+      </g>
+      <path class="st" fill="none" d="M6 18Q160 44 314 18"/>
+      <path class="f-green st" d="M15.3 19.5L27.5 21.4L19.4 33.3z"/>
+      <path class="f-gold st" d="M38.3 22.9L50.7 24.5L42.9 36.6z"/>
+      <path class="f-sage st" d="M61.4 25.7L73.8 26.9L66.3 39.3z"/>
+      <path class="f-paper st" d="M84.5 27.9L96.9 28.8L89.7 41.3z"/>
+      <path class="f-green st" d="M107.6 29.5L120 30.1L113.1 42.8z"/>
+      <path class="f-gold st" d="M130.7 30.6L143.1 30.9L136.6 43.7z"/>
+      <path class="f-sage st" d="M153.8 31L166.2 31L160 44z"/>
+      <path class="f-paper st" d="M176.9 30.9L189.3 30.6L183.4 43.7z"/>
+      <path class="f-green st" d="M200 30.1L212.4 29.5L206.9 42.8z"/>
+      <path class="f-gold st" d="M223.1 28.8L235.5 27.9L230.3 41.3z"/>
+      <path class="f-sage st" d="M246.2 26.9L258.6 25.7L253.7 39.3z"/>
+      <path class="f-paper st" d="M269.3 24.5L281.7 22.9L277.1 36.6z"/>
+      <path class="f-green st" d="M292.5 21.4L304.7 19.5L300.6 33.3z"/>
+      <path class="f-sage float" d="M298 76c3-5 8-6 12-4-2 5-7 6-12 4z"/>
+      <path class="f-green float float--slow" d="M8 70c3-5 8-6 12-4-2 5-7 6-12 4z" opacity=".75"/>
+    </svg>
     <h1 class="auth__title">Dumpy</h1>
     <p class="auth__lead">Give away or sell your extra stuff to neighbours, and pick up things you need, right inside your housing society.</p>
     <ol class="steps">
