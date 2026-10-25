@@ -70,23 +70,53 @@
     var m = new RegExp("[?&]" + key + "=([^&]*)").exec(href);
     return m ? decodeURIComponent(m[1]) : "";
   }
-  // The Pay buttons for a upi:// link. label is the button text off phones
-  // (for example "Pay ₹250"); on phones it heads the app buttons.
-  function buttons(href, label) {
+  function copyRow(upi) {
+    return '<div class="pay__upi"><p><span class="small muted">UPI ID</span><br><span class="pay__id" translate="no">' + esc(upi) + "</span></p>" +
+      '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>";
+  }
+  function step(n, title, body) {
+    return '<li class="pay-step"><span class="pay-step__n" aria-hidden="true">' + n + '</span><div class="pay-step__body">' +
+      '<p class="pay-step__t">' + title + "</p>" + (body || "") + "</div></li>";
+  }
+
+  // How to pay, as numbered steps. Used for item payments and the Dumpy fee.
+  //   href   the upi://pay link (UPI ID, name, amount, note)
+  //   price  "₹250"
+  //   note   a reference to type as the payment note, or ""
+  //   last   [title, html] for a final step (for example "Tap I've paid"), or null
+  //   qrLabel  what the QR code pays, for screen readers
+  function steps(href, price, note, last, qrLabel) {
     var kind = phoneKind();
-    if (!kind) {
-      return '<a class="btn btn--primary btn--lg btn--block" href="' + esc(href) + '" data-pay-link>' + esc(label) + "</a>";
-    }
     var upi = linkParam(href, "pa");
-    var amount = rupees(linkParam(href, "am") || 0);
-    return '<div class="pay__apps" role="group" aria-label="' + esc(label) + '">' +
-      '<p class="pay__apps-title">' + esc(label) + "</p>" +
-      '<p class="small pay__apps-how">Tap your app: Dumpy copies the UPI ID and opens it. Paste the ID, enter <strong>' + esc(amount) + "</strong> and pay.</p>" +
-      APPS.map(function (a) {
-        return '<a class="btn btn--primary" href="' + esc(openHref(a, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-id="' + esc(upi) + '">' + esc(a.name) + "</a>";
-      }).join("") +
-      '<a class="btn btn--outline" href="' + esc(href) + '" data-pay-link>Pay with link</a>' +
-      '<p class="small muted pay__apps-status" data-pay-status-line role="status" aria-live="polite"></p></div>';
+    var qr = qrSvg(href);
+    var qrBox = qr ? '<figure class="pay__qrcode" role="img" aria-label="QR code to pay ' + esc(qrLabel) + '">' + qr + "</figure>" : "";
+    var amountText = "Enter <strong class=\"pay__amount\">" + esc(price) + "</strong>" +
+      (note ? ', add the note <strong translate="no">' + esc(note) + "</strong>," : "") + " and pay";
+    var n = 0;
+    var html = '<ol class="pay-steps">';
+    if (kind) {
+      html += step(++n, "Tap the app you pay with",
+        '<div class="pay__apps">' + APPS.map(function (a) {
+          return '<a class="btn btn--primary" href="' + esc(openHref(a, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-id="' + esc(upi) + '">' + esc(a.name) + "</a>";
+        }).join("") + "</div>" +
+        '<p class="small muted">Dumpy copies the UPI ID and opens the app.</p>' +
+        '<p class="small pay__apps-status" data-pay-status-line role="status" aria-live="polite"></p>');
+      html += step(++n, "Paste the UPI ID",
+        '<p class="small muted">In the app, choose “Pay UPI ID” or “To UPI ID” and paste.</p>' + copyRow(upi));
+      html += step(++n, amountText);
+    } else {
+      html += step(++n, "Scan this code with your phone",
+        '<p class="small muted">Use any UPI app: Google Pay, PhonePe, Paytm or your bank\'s app.</p>' + qrBox + copyRow(upi));
+      html += step(++n, amountText);
+    }
+    if (last) html += step(++n, last[0], last[1]);
+    html += "</ol>";
+    html += '<details class="pay__more" data-pay-qr><summary>Other ways to pay</summary><div class="stack-sm">' +
+      '<a class="btn btn--outline btn--block" href="' + esc(href) + '" data-pay-link>Open payment link</a>' +
+      '<p class="small muted">Fills in the amount for you. Some apps, like Google Pay, refuse these links for personal UPI IDs.</p>' +
+      (kind && qrBox ? qrBox + '<p class="small muted">Or scan this code with another phone.</p>' : "") +
+      "<p class=\"small muted\">You can also pay " + esc(price) + " in cash. Dumpy never holds money.</p></div></details>";
+    return html;
   }
 
   // A QR code of the link as inline SVG, drawn by the pinned qrcode-generator
@@ -163,32 +193,7 @@
     }
 
     var href = link(upi, c.display_name, l.price_inr, l.title);
-    var qr = qrSvg(href);
-    return head +
-      buttons(href, "Pay " + price) +
-      '<div class="pay__upi"><p><span class="small muted">UPI ID</span><br><span class="pay__id" translate="no">' + esc(upi) + "</span></p>" +
-      '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>" +
-      (qr ? '<details class="pay__qr" data-pay-qr><summary>Show QR code</summary>' +
-        '<figure role="img" aria-label="QR code to pay ' + esc(c.display_name) + " " + price + ' by UPI">' + qr + "</figure>" +
-        '<p class="small muted">Scan with any UPI app on another phone.</p></details>' : "") +
-      '<p class="small muted">If nothing opens, copy the UPI ID and pay ' + price + " in any UPI app, or pay in cash. Dumpy never holds money.</p>" +
-      "</div>";
-  }
-
-  // Open the QR code by default on larger screens, where there is room and the
-  // person is likely to scan it with their phone. Each code is opened once, so
-  // closing it by hand sticks.
-  var wide = window.matchMedia ? window.matchMedia("(min-width: 600px)") : { matches: false };
-  function openQrOnWide() {
-    if (!wide.matches) return;
-    document.querySelectorAll("[data-pay-qr]:not([data-seen])").forEach(function (d) {
-      d.dataset.seen = "1";
-      d.open = true;
-    });
-  }
-  if (window.MutationObserver) {
-    new MutationObserver(function () { openQrOnWide(); })
-      .observe(document.documentElement, { childList: true, subtree: true });
+    return head + steps(href, price, "", null, esc(c.display_name) + " " + price) + "</div>";
   }
 
   async function copy(text) {
@@ -214,7 +219,7 @@
     var a = e.target.closest && e.target.closest("[data-pay-app]");
     if (!a) return;
     e.preventDefault();
-    var line = a.parentNode.querySelector("[data-pay-status-line]");
+    var line = a.closest(".pay").querySelector("[data-pay-status-line]");
     var said = "";
     try { await copy(a.dataset.payId); said = "UPI ID copied. Opening " + a.dataset.payApp + "…"; }
     catch (err) { said = "Opening " + a.dataset.payApp + ". Copy the UPI ID below if it isn't filled in."; }
@@ -253,5 +258,5 @@
     input.disabled = false;
   });
 
-  Dumpy.pay = { link: link, buttons: buttons, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
+  Dumpy.pay = { link: link, steps: steps, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
 })();

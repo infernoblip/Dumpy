@@ -52,10 +52,12 @@ const errors = [];
   const u = new URL(href.replace('upi://', 'https://upi.example/'));
   check(u.searchParams.get('pa') === UPI && u.searchParams.get('am') === '250.00' && u.searchParams.get('cu') === 'INR'
     && u.searchParams.get('tn') === 'Dumpy: Folding study table & stool', 'A UPI app reads back the same ID, amount and note (the & in the title is escaped)');
-  check((await t.textContent('[data-pay-link]')).trim() === 'Pay ₹250', 'The button says Pay ₹250');
-  check(!(await t.evaluate(() => !!window.qrcode)) || (await t.locator('[data-pay-qr] svg path').count()) === 1, 'A QR code of the same link is drawn in the browser');
+  check((await t.textContent('[data-pay-link]')).trim() === 'Open payment link', 'The filled-in link is offered under Other ways to pay');
+  check((await t.textContent('.pay-steps')).includes('Scan this code with your phone') && (await t.textContent('.pay-steps')).includes('Enter ₹250 and pay'),
+    'Off a phone, the steps say to scan the code and enter ₹250');
+  check(!(await t.evaluate(() => !!window.qrcode)) || (await t.locator('.pay__qrcode svg path').count()) === 1, 'A QR code of the same link is drawn in the browser');
   check(await t.evaluate(() => !!window.qrcode), 'The pinned QR library loaded');
-  check(!(await t.evaluate(() => document.querySelector('[data-pay-qr]').open)), 'On a phone the QR code starts folded away');
+  check(!(await t.evaluate(() => document.querySelector('[data-pay-qr]').open)), 'Other ways to pay starts folded away');
   await noSideScroll(t, 'item pay'); await smallTargets(t, 'item pay');
   await shot(t, 'item-pay-light');
 
@@ -71,9 +73,11 @@ const errors = [];
   check(apps[0][1] === launch + 'com.google.android.apps.nbu.paisa.user;end' && apps[1][1] === launch + 'com.phonepe.app;end'
     && apps[2][1] === launch + 'net.one97.paytm;end' && apps.every((a) => a[2] === UPI),
     'Each Android button opens that app by its package (no payment link, which Google Pay refuses for personal UPI IDs) and carries the UPI ID to copy');
-  check((await ta.textContent('.pay__apps-how')).includes('enter ₹250'), 'The box says to paste the ID and enter ₹250');
-  check((await ta.getAttribute('[data-pay-link]', 'href')) === expected && (await ta.textContent('[data-pay-link]')).trim() === 'Pay with link',
-    'Pay with link keeps the filled-in upi:// link');
+  const stepsText = await ta.textContent('.pay-steps');
+  check(/1\s*Tap the app you pay with/.test(stepsText) && /2\s*Paste the UPI ID/.test(stepsText) && /3\s*Enter ₹250 and pay/.test(stepsText),
+    'On a phone, three numbered steps: tap your app, paste the UPI ID, enter ₹250 and pay');
+  check((await ta.getAttribute('[data-pay-link]', 'href')) === expected && (await ta.textContent('[data-pay-link]')).trim() === 'Open payment link',
+    'Other ways to pay keeps the filled-in upi:// link');
   check(!(await ta.content()).includes('whatsapp://pay'), 'No button hands the payment to WhatsApp');
   await noSideScroll(ta, 'item pay android'); await smallTargets(ta, 'item pay android');
   await shot(ta, 'item-pay-android-light');
@@ -100,7 +104,7 @@ const errors = [];
   require('child_process').execSync('npm pack -q jsqr@1.4.0 >/dev/null && tar xzf jsqr-1.4.0.tgz', { cwd: jsqrDir });
   await t.addScriptTag({ path: path.join(jsqrDir, 'package/dist/jsQR.js') });
   const decoded = await t.evaluate(async () => {
-    const svg = document.querySelector('[data-pay-qr] svg');
+    const svg = document.querySelector('.pay__qrcode svg');
     const img = new Image();
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
     await img.decode();
@@ -161,7 +165,7 @@ const errors = [];
   // 6. Larger screens show the QR code straight away; dark mode.
   const wide = await personPage(TAKER, { viewport: { width: 1024, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
   await wide.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(wide); await wide.waitForSelector('.pay');
-  check(await wide.evaluate(() => document.querySelector('[data-pay-qr]').open), 'On a larger screen the QR code is shown straight away');
+  check(await wide.isVisible('.pay__qrcode svg'), 'On a larger screen the QR code is shown straight away');
   await shot(wide, 'item-pay-wide-light');
   const dark = await personPage(TAKER, { colorScheme: 'dark' });
   await dark.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(dark); await dark.waitForSelector('.pay');
