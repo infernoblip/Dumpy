@@ -225,7 +225,7 @@
       (qr ? '<details class="pay__qr" data-pay-qr><summary>Show QR code</summary>' +
         '<figure role="img" aria-label="QR code to pay Dumpy ' + price + ' by UPI">' + qr + "</figure>" +
         '<p class="small muted">Scan with any UPI app on another phone.</p></details>' : "") +
-      '<p class="small muted">Put reference <strong translate="no">' + esc(d.fee_ref) + "</strong> in the payment note (the Pay buttons fill it in). Then tap I've paid.</p>" +
+      '<p class="small muted">Add reference <strong translate="no">' + esc(d.fee_ref) + "</strong> as the note when you pay, so Dumpy can match it. Then tap I've paid.</p>" +
       '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button></div>';
   }
 

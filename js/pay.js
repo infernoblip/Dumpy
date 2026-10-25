@@ -36,17 +36,24 @@
       "&tn=" + encodeURIComponent(note);
   }
 
-  // Buttons that open a named UPI app. A plain upi:// link lets the phone pick
-  // the app, and on many phones that is WhatsApp (it registers for UPI links
-  // too), so phones get one button per common app:
-  //   Android  an intent link naming the app's package; Chrome opens that app,
-  //            or its Play Store page if it is not installed
-  //   iPhone   the app's own link scheme (iOS has no shared upi:// handler)
-  // Every button carries the same payment details as the plain link.
+  // Paying on a phone. Two things go wrong with a payment link (upi://pay with
+  // the amount filled in):
+  //   * the phone picks which app opens it, and on many phones that is
+  //     WhatsApp, which registers for UPI links too
+  //   * Google Pay treats a link that pays a personal UPI ID as risky and
+  //     refuses it with "bank limit reached", although paying the same person
+  //     by hand works
+  // So on phones each app button copies the UPI ID and opens the app itself.
+  // The person pastes the ID and types the amount, which the app sees as an
+  // ordinary payment. "Pay with link" keeps the filled-in link for apps and
+  // business UPI IDs that accept it.
+  //   Android  an intent naming the app's package (Chrome opens the app, or
+  //            its Play Store page if it is not installed)
+  //   iPhone   the app's own link scheme
   var APPS = [
-    { name: "Google Pay", android: "com.google.android.apps.nbu.paisa.user", ios: "gpay://upi/pay" },
-    { name: "PhonePe", android: "com.phonepe.app", ios: "phonepe://pay" },
-    { name: "Paytm", android: "net.one97.paytm", ios: "paytmmp://upi/pay" }
+    { name: "Google Pay", android: "com.google.android.apps.nbu.paisa.user", ios: "gpay://" },
+    { name: "PhonePe", android: "com.phonepe.app", ios: "phonepe://" },
+    { name: "Paytm", android: "net.one97.paytm", ios: "paytmmp://" }
   ];
   function phoneKind() {
     var ua = navigator.userAgent || "";
@@ -54,23 +61,32 @@
     if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
     return null;
   }
-  function appHref(app, href, kind) {
-    var query = href.slice(href.indexOf("?"));
-    return kind === "android" ? "intent://pay" + query + "#Intent;scheme=upi;package=" + app.android + ";end" : app.ios + query;
+  function openHref(app, kind) {
+    return kind === "android"
+      ? "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=" + app.android + ";end"
+      : app.ios;
+  }
+  function linkParam(href, key) {
+    var m = new RegExp("[?&]" + key + "=([^&]*)").exec(href);
+    return m ? decodeURIComponent(m[1]) : "";
   }
   // The Pay buttons for a upi:// link. label is the button text off phones
-  // (for example "Pay ₹250"); on phones it heads the row of app buttons.
+  // (for example "Pay ₹250"); on phones it heads the app buttons.
   function buttons(href, label) {
     var kind = phoneKind();
     if (!kind) {
       return '<a class="btn btn--primary btn--lg btn--block" href="' + esc(href) + '" data-pay-link>' + esc(label) + "</a>";
     }
+    var upi = linkParam(href, "pa");
+    var amount = rupees(linkParam(href, "am") || 0);
     return '<div class="pay__apps" role="group" aria-label="' + esc(label) + '">' +
-      '<p class="pay__apps-title">' + esc(label) + " with</p>" +
+      '<p class="pay__apps-title">' + esc(label) + "</p>" +
+      '<p class="small pay__apps-how">Tap your app: Dumpy copies the UPI ID and opens it. Paste the ID, enter <strong>' + esc(amount) + "</strong> and pay.</p>" +
       APPS.map(function (a) {
-        return '<a class="btn btn--primary" href="' + esc(appHref(a, href, kind)) + '" data-pay-app="' + esc(a.name) + '">' + esc(a.name) + "</a>";
+        return '<a class="btn btn--primary" href="' + esc(openHref(a, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-id="' + esc(upi) + '">' + esc(a.name) + "</a>";
       }).join("") +
-      '<a class="btn btn--outline" href="' + esc(href) + '" data-pay-link>Other app</a></div>';
+      '<a class="btn btn--outline" href="' + esc(href) + '" data-pay-link>Pay with link</a>' +
+      '<p class="small muted pay__apps-status" data-pay-status-line role="status" aria-live="polite"></p></div>';
   }
 
   // A QR code of the link as inline SVG, drawn by the pinned qrcode-generator
@@ -155,7 +171,7 @@
       (qr ? '<details class="pay__qr" data-pay-qr><summary>Show QR code</summary>' +
         '<figure role="img" aria-label="QR code to pay ' + esc(c.display_name) + " " + price + ' by UPI">' + qr + "</figure>" +
         '<p class="small muted">Scan with any UPI app on another phone.</p></details>' : "") +
-      '<p class="small muted">Each button opens that app with ' + price + " filled in. If nothing opens, copy the UPI ID and pay in any UPI app, or pay in cash. Dumpy never holds money.</p>" +
+      '<p class="small muted">If nothing opens, copy the UPI ID and pay ' + price + " in any UPI app, or pay in cash. Dumpy never holds money.</p>" +
       "</div>";
   }
 
@@ -192,6 +208,20 @@
     t.remove();
     if (!ok) throw new Error("copy failed");
   }
+
+  // App buttons: copy the UPI ID first, then open the app.
+  document.addEventListener("click", async function (e) {
+    var a = e.target.closest && e.target.closest("[data-pay-app]");
+    if (!a) return;
+    e.preventDefault();
+    var line = a.parentNode.querySelector("[data-pay-status-line]");
+    var said = "";
+    try { await copy(a.dataset.payId); said = "UPI ID copied. Opening " + a.dataset.payApp + "…"; }
+    catch (err) { said = "Opening " + a.dataset.payApp + ". Copy the UPI ID below if it isn't filled in."; }
+    if (line) line.textContent = said;
+    var go = a.getAttribute("href");
+    setTimeout(function () { window.location.href = go; }, 400);
+  });
 
   document.addEventListener("click", async function (e) {
     var b = e.target.closest && e.target.closest("[data-pay-copy]");

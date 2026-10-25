@@ -176,7 +176,7 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   sql(`select public.mark_delivered('${rid}')`, HELPER.id);
   await td.reload(); await settle(td);
   await td.waitForSelector(`${box} [data-pay-link]`);
-  check((await td.getAttribute(`${box} [data-pay-app="PhonePe"]`, 'href')).startsWith('intent://pay?pa=dumpy.demo@okbank&pn=Dumpy&am=20.00'), 'On Android the fee box offers PhonePe and the other UPI apps');
+  check((await td.getAttribute(`${box} [data-pay-app="PhonePe"]`, 'data-pay-id')) === 'dumpy.demo@okbank' && (await td.textContent(`${box} .pay__apps-how`)).includes('enter ₹20'), 'On Android the fee box offers PhonePe and the other UPI apps, with the ID to copy and ₹20 to enter');
   await shot(td, 'item-fee-due-dark');
   const bd = await personPage(BOSS, 'dark');
   await bd.goto(SITE + '/pages/platform.html'); await settle(bd);
