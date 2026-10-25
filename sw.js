@@ -12,7 +12,7 @@
    - Pages are saved under one name with and without ".html", and without
      their ?query, because the host redirects /pages/item.html to /pages/item
      and the query only carries data such as an item id. */
-var CACHE = "dumpy-shell-v3";
+var CACHE = "dumpy-shell-v4";
 var WAIT_MS = 3000;
 
 var SHELL = [
@@ -38,6 +38,7 @@ var SHELL = [
   "js/post.js",
   "js/photos.js",
   "js/pay.js",
+  "js/fees.js",
   "js/delivery.js",
   "js/notify.js",
   "js/moderation.js",
