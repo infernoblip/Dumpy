@@ -214,12 +214,19 @@
     }
     var upi = d.fee_upi_id;
     var P = Dumpy.pay;
-    var href = upi && P ? P.link(upi, d.fee_payee_name || "Dumpy", d.fee_inr, "delivery " + d.fee_ref) : null;
+    var href = null;
+    if (upi && P) {
+      href = P.link(upi, d.fee_payee_name || "Dumpy", d.fee_inr, "delivery " + d.fee_ref);
+      // Business UPI IDs: add the merchant code and a transaction reference,
+      // which merchant payments expect.
+      if (d.fee_upi_business) href += (d.fee_merchant_code ? "&mc=" + d.fee_merchant_code : "") + "&tr=" + encodeURIComponent(d.fee_ref);
+    }
     var paidBtn = '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button>';
-    return head +
-      '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's " + price +
-        " delivery fee. Any tip goes straight to " + esc(d.helper_name || "the helper") + ", as you agreed.</p>" +
-      (href ? P.steps(href, price, d.fee_ref, ["Come back and tap I've paid", paidBtn], "Dumpy " + price)
+    return head.replace(">Dumpy delivery fee · " + price + "<", ">Dumpy delivery fee<") +
+      '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's delivery fee. Any tip goes straight to " +
+        esc(d.helper_name || "the helper") + ", as you agreed.</p>" +
+      (href ? P.steps({ href: href, price: price, payee: d.fee_payee_name || "Dumpy", note: d.fee_upi_business ? "" : d.fee_ref,
+                        last: ["Come back and tap I've paid", paidBtn], oneTap: !!d.fee_upi_business })
         : '<p class="small">Ask the person who runs Dumpy how to pay.</p>' + paidBtn) +
       "</div>";
   }

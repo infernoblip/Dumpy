@@ -75,47 +75,72 @@
       '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>";
   }
   function step(n, title, body) {
-    return '<li class="pay-step"><span class="pay-step__n" aria-hidden="true">' + n + '</span><div class="pay-step__body">' +
+    return '<li class="pay-step" data-pay-step="' + n + '"><span class="pay-step__n" aria-hidden="true">' + n + '</span><div class="pay-step__body">' +
       '<p class="pay-step__t">' + title + "</p>" + (body || "") + "</div></li>";
   }
 
-  // How to pay, as numbered steps. Used for item payments and the Dumpy fee.
-  //   href   the upi://pay link (UPI ID, name, amount, note)
-  //   price  "₹250"
-  //   note   a reference to type as the payment note, or ""
-  //   last   [title, html] for a final step (for example "Tap I've paid"), or null
-  //   qrLabel  what the QR code pays, for screen readers
-  function steps(href, price, note, last, qrLabel) {
+  // Where to paste a UPI ID in each app, shown after the person taps it.
+  var WHERE = {
+    "Google Pay": "In Google Pay, tap “Pay UPI ID or number”, then paste.",
+    "PhonePe": "In PhonePe, tap the option to pay a UPI ID, then paste.",
+    "Paytm": "In Paytm, tap the option to pay a UPI ID, then paste."
+  };
+  // One-tap links that open an app with the payment filled in. Only used for
+  // business UPI IDs: Google Pay refuses them for personal ones.
+  var ONE_TAP_IOS = { "Google Pay": "gpay://upi/pay", "PhonePe": "phonepe://pay", "Paytm": "paytmmp://upi/pay" };
+  function oneTapHref(app, href, kind) {
+    var query = href.slice(href.indexOf("?"));
+    return kind === "android" ? "intent://pay" + query + "#Intent;scheme=upi;package=" + app.android + ";end" : ONE_TAP_IOS[app.name] + query;
+  }
+
+  // How to pay, as a big amount and numbered steps. Used for item payments
+  // and the Dumpy fee.
+  //   o.href     the upi://pay link (UPI ID, name, amount, note)
+  //   o.price    "₹250"
+  //   o.payee    who is paid, for "to Demo Owner"
+  //   o.note     a reference to add as the payment note, or ""
+  //   o.last     [title, html] for a final step (for example "Tap I've paid")
+  //   o.oneTap   true for a business UPI ID: the app opens with everything filled in
+  function steps(o) {
     var kind = phoneKind();
+    var href = o.href;
     var upi = linkParam(href, "pa");
     var qr = qrSvg(href);
-    var qrBox = qr ? '<figure class="pay__qrcode" role="img" aria-label="QR code to pay ' + esc(qrLabel) + '">' + qr + "</figure>" : "";
-    var amountText = "Enter <strong class=\"pay__amount\">" + esc(price) + "</strong>" +
-      (note ? ', add the note <strong translate="no">' + esc(note) + "</strong>," : "") + " and pay";
+    var qrBox = qr ? '<figure class="pay__qrcode" role="img" aria-label="QR code to pay ' + esc(o.payee) + " " + esc(o.price) + '">' + qr + "</figure>" : "";
+    var noteText = o.note ? ' Add the note <strong translate="no">' + esc(o.note) + "</strong>." : "";
     var n = 0;
-    var html = '<ol class="pay-steps">';
-    if (kind) {
+    var html = '<p class="pay__sum"><span class="pay__sum-amount">' + esc(o.price) + '</span><span class="pay__sum-to">to ' + esc(o.payee) + "</span></p>" +
+      '<ol class="pay-steps">';
+    if (kind && o.oneTap) {
       html += step(++n, "Tap the app you pay with",
         '<div class="pay__apps">' + APPS.map(function (a) {
-          return '<a class="btn btn--primary" href="' + esc(openHref(a, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-id="' + esc(upi) + '">' + esc(a.name) + "</a>";
+          return '<a class="btn btn--primary btn--lg" href="' + esc(oneTapHref(a, href, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-onetap>' + esc(a.name) + "</a>";
         }).join("") + "</div>" +
-        '<p class="small muted">Dumpy copies the UPI ID and opens the app.</p>' +
+        '<p class="small muted">It opens with ' + esc(o.price) + " and everything else filled in.</p>");
+      html += step(++n, "Check it says " + esc(o.price) + ", then pay");
+    } else if (kind) {
+      html += step(++n, "Tap the app you pay with",
+        '<div class="pay__apps">' + APPS.map(function (a) {
+          return '<a class="btn btn--primary btn--lg" href="' + esc(openHref(a, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-id="' + esc(upi) + '">' + esc(a.name) + "</a>";
+        }).join("") + "</div>" +
+        '<p class="small muted">We copy the UPI ID for you, then open the app.</p>' +
         '<p class="small pay__apps-status" data-pay-status-line role="status" aria-live="polite"></p>');
       html += step(++n, "Paste the UPI ID",
-        '<p class="small muted">In the app, choose “Pay UPI ID” or “To UPI ID” and paste.</p>' + copyRow(upi));
-      html += step(++n, amountText);
+        '<p class="small muted" data-pay-where>In the app, tap the option to pay a UPI ID, then paste.</p>' + copyRow(upi));
+      html += step(++n, "Pay <span class=\"pay__amount\">" + esc(o.price) + "</span>", noteText ? '<p class="small">' + noteText.trim() + "</p>" : "");
     } else {
       html += step(++n, "Scan this code with your phone",
         '<p class="small muted">Use any UPI app: Google Pay, PhonePe, Paytm or your bank\'s app.</p>' + qrBox + copyRow(upi));
-      html += step(++n, amountText);
+      html += step(++n, "Pay <span class=\"pay__amount\">" + esc(o.price) + "</span>", noteText ? '<p class="small">' + noteText.trim() + "</p>" : "");
     }
-    if (last) html += step(++n, last[0], last[1]);
+    if (o.last) html += step(++n, o.last[0], o.last[1]);
     html += "</ol>";
     html += '<details class="pay__more" data-pay-qr><summary>Other ways to pay</summary><div class="stack-sm">' +
+      (kind && o.oneTap ? '<p class="small muted">Pay the UPI ID yourself in any UPI app:</p>' + copyRow(upi) : "") +
       '<a class="btn btn--outline btn--block" href="' + esc(href) + '" data-pay-link>Open payment link</a>' +
-      '<p class="small muted">Fills in the amount for you. Some apps, like Google Pay, refuse these links for personal UPI IDs.</p>' +
+      (o.oneTap ? "" : '<p class="small muted">Fills in the amount for you. Some apps, like Google Pay, refuse these links for personal UPI IDs.</p>') +
       (kind && qrBox ? qrBox + '<p class="small muted">Or scan this code with another phone.</p>' : "") +
-      "<p class=\"small muted\">You can also pay " + esc(price) + " in cash. Dumpy never holds money.</p></div></details>";
+      "<p class=\"small muted\">You can also pay " + esc(o.price) + " in cash. Dumpy never holds money.</p></div></details>";
     return html;
   }
 
@@ -193,7 +218,8 @@
     }
 
     var href = link(upi, c.display_name, l.price_inr, l.title);
-    return head + steps(href, price, "", null, esc(c.display_name) + " " + price) + "</div>";
+    head = head.replace(">Payment · " + price + "<", ">Payment<");
+    return head + steps({ href: href, price: price, payee: c.display_name }) + "</div>";
   }
 
   async function copy(text) {
@@ -217,13 +243,18 @@
   // App buttons: copy the UPI ID first, then open the app.
   document.addEventListener("click", async function (e) {
     var a = e.target.closest && e.target.closest("[data-pay-app]");
-    if (!a) return;
+    if (!a || a.hasAttribute("data-pay-onetap")) return;
     e.preventDefault();
-    var line = a.closest(".pay").querySelector("[data-pay-status-line]");
+    var box = a.closest(".pay");
+    var line = box.querySelector("[data-pay-status-line]");
+    var where = box.querySelector("[data-pay-where]");
     var said = "";
-    try { await copy(a.dataset.payId); said = "UPI ID copied. Opening " + a.dataset.payApp + "…"; }
+    try { await copy(a.dataset.payId); said = "✓ UPI ID copied. Opening " + a.dataset.payApp + "…"; }
     catch (err) { said = "Opening " + a.dataset.payApp + ". Copy the UPI ID below if it isn't filled in."; }
     if (line) line.textContent = said;
+    if (where) where.textContent = WHERE[a.dataset.payApp] || where.textContent;
+    var first = box.querySelector('[data-pay-step="1"]');
+    if (first) first.classList.add("is-done");
     var go = a.getAttribute("href");
     setTimeout(function () { window.location.href = go; }, 400);
   });

@@ -1425,8 +1425,18 @@ a.row-card__title:hover span { text-decoration: underline; text-underline-offset
 .pay__switch { gap: var(--space-3); }
 /* Paying, as numbered steps. On phones each app button copies the UPI ID and
    opens the app, so Pay never lands in WhatsApp or a refused payment link. */
-.pay-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
-.pay-step { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+.pay__sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.pay__sum-amount { font: 700 2.25rem/1.1 var(--font-display); color: var(--heading); }
+.pay__sum-to { font-size: 1.0625rem; color: var(--muted); overflow-wrap: anywhere; }
+.pay-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4, 20px); }
+.pay-step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+/* A thin line joins each step's number to the next one. */
+.pay-step:not(:last-child)::before {
+  content: ""; position: absolute; left: 15px; top: 36px; bottom: calc(-1 * var(--space-4, 20px) + 4px);
+  width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--brand) 25%, transparent);
+}
+.pay-step.is-done .pay-step__n { font-size: 0; }
+.pay-step.is-done .pay-step__n::after { content: "✓"; font-size: 1rem; }
 .pay-step__n {
   display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
   background: var(--brand); color: var(--brand-ink); font: 650 1rem/1 var(--font-display);

@@ -53,7 +53,7 @@ const errors = [];
   check(u.searchParams.get('pa') === UPI && u.searchParams.get('am') === '250.00' && u.searchParams.get('cu') === 'INR'
     && u.searchParams.get('tn') === 'Dumpy: Folding study table & stool', 'A UPI app reads back the same ID, amount and note (the & in the title is escaped)');
   check((await t.textContent('[data-pay-link]')).trim() === 'Open payment link', 'The filled-in link is offered under Other ways to pay');
-  check((await t.textContent('.pay-steps')).includes('Scan this code with your phone') && (await t.textContent('.pay-steps')).includes('Enter ₹250 and pay'),
+  check((await t.textContent('.pay-steps')).includes('Scan this code with your phone') && (await t.textContent('.pay-steps')).includes('Pay ₹250') && (await t.textContent('.pay__sum')).includes('₹250to Demo Owner'),
     'Off a phone, the steps say to scan the code and enter ₹250');
   check(!(await t.evaluate(() => !!window.qrcode)) || (await t.locator('.pay__qrcode svg path').count()) === 1, 'A QR code of the same link is drawn in the browser');
   check(await t.evaluate(() => !!window.qrcode), 'The pinned QR library loaded');
@@ -74,8 +74,8 @@ const errors = [];
     && apps[2][1] === launch + 'net.one97.paytm;end' && apps.every((a) => a[2] === UPI),
     'Each Android button opens that app by its package (no payment link, which Google Pay refuses for personal UPI IDs) and carries the UPI ID to copy');
   const stepsText = await ta.textContent('.pay-steps');
-  check(/1\s*Tap the app you pay with/.test(stepsText) && /2\s*Paste the UPI ID/.test(stepsText) && /3\s*Enter ₹250 and pay/.test(stepsText),
-    'On a phone, three numbered steps: tap your app, paste the UPI ID, enter ₹250 and pay');
+  check(/1\s*Tap the app you pay with/.test(stepsText) && /2\s*Paste the UPI ID/.test(stepsText) && /3\s*Pay ₹250/.test(stepsText) && /₹250\s*to Demo Owner/.test(await ta.textContent('.pay__sum')),
+    'On a phone: ₹250 to Demo Owner in large type, then three numbered steps: tap your app, paste the UPI ID, pay ₹250');
   check((await ta.getAttribute('[data-pay-link]', 'href')) === expected && (await ta.textContent('[data-pay-link]')).trim() === 'Open payment link',
     'Other ways to pay keeps the filled-in upi:// link');
   check(!(await ta.content()).includes('whatsapp://pay'), 'No button hands the payment to WhatsApp');
@@ -85,6 +85,8 @@ const errors = [];
   await ta.click('.pay [data-pay-app="Google Pay"]');
   await ta.waitForFunction(() => /UPI ID copied/.test(document.querySelector('[data-pay-status-line]').textContent));
   check((await ta.evaluate(() => navigator.clipboard.readText())) === UPI, 'Tapping Google Pay copies the UPI ID, then opens the app');
+  check((await ta.textContent('[data-pay-where]')).includes('In Google Pay, tap “Pay UPI ID or number”') && await ta.evaluate(() => document.querySelector('[data-pay-step="1"]').classList.contains('is-done')),
+    'Step 1 is ticked and step 2 says where to paste in Google Pay');
   const ti = await personPage(TAKER, { userAgent: IPHONE });
   await ti.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(ti); await ti.waitForSelector('.pay [data-pay-app]');
   const iapps = await ti.$$eval('.pay [data-pay-app]', (els) => els.map((e) => e.getAttribute('href')));

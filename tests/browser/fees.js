@@ -176,15 +176,41 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   sql(`select public.mark_delivered('${rid}')`, HELPER.id);
   await td.reload(); await settle(td);
   await td.waitForSelector(`${box} [data-pay-app]`);
-  check((await td.getAttribute(`${box} [data-pay-app="PhonePe"]`, 'data-pay-id')) === 'dumpy.demo@okbank' && /Enter ₹20, add the note DLV-[0-9A-F]{6}, and pay/.test(await td.textContent(`${box} .pay-steps`)) && /4\s*Come back and tap I've paid/.test(await td.textContent(`${box} .pay-steps`)), 'On Android the fee box offers PhonePe and the other UPI apps, with the ID to copy and ₹20 to enter');
+  check((await td.getAttribute(`${box} [data-pay-app="PhonePe"]`, 'data-pay-id')) === 'dumpy.demo@okbank' && /3\s*Pay ₹20\s*Add the note DLV-[0-9A-F]{6}/.test(await td.textContent(`${box} .pay-steps`)) && /4\s*Come back and tap I've paid/.test(await td.textContent(`${box} .pay-steps`)), 'On Android the fee box offers PhonePe and the other UPI apps, with the ID to copy and ₹20 to enter');
   await shot(td, 'item-fee-due-dark');
+
+  // A business UPI ID: pasting the business QR link on Run Dumpy fills in the
+  // details, and the taker's app opens with ₹20 and the reference filled in.
+  await b.goto(SITE + '/pages/platform.html'); await settle(b);
+  await b.waitForSelector('#fees:not([hidden])');
+  check(await b.isHidden('#fee-mc-field'), 'The merchant code field stays hidden for a personal UPI ID');
+  await b.fill('#fee-upi', 'upi://pay?pa=Q987654321@ybl&pn=Dumpy%20Store&mc=5399&mode=02&purpose=00');
+  check((await b.inputValue('#fee-upi')) === 'Q987654321@ybl' && (await b.inputValue('#fee-name')) === 'Dumpy Store'
+    && await b.isChecked('#fee-business') && (await b.inputValue('#fee-mc')) === '5399',
+    'Pasting the business QR link fills in the UPI ID, name and merchant code, and ticks "business"');
+  await noSideScroll(b, 'run dumpy business upi'); await smallTargets(b, 'run dumpy business upi');
+  await b.evaluate(() => document.getElementById('fee-form').scrollIntoView());
+  await shot(b, 'platform-business-upi-light', false);
+  await b.click('#fee-form button[type=submit]');
+  await b.waitForSelector('#fee-saved:not([hidden])');
+  check(q1(`select fee_upi_id || ' ' || fee_upi_business || ' ' || fee_merchant_code from public.platform_settings`) === 'Q987654321@ybl true 5399', 'The business UPI ID is saved');
+  await td.reload(); await settle(td);
+  await td.waitForSelector(`${box} [data-pay-onetap]`);
+  const one = await td.getAttribute(`${box} [data-pay-app="Google Pay"]`, 'href');
+  check(one.startsWith('intent://pay?pa=Q987654321@ybl&pn=Dumpy%20Store&am=20.00&cu=INR&tn=') && one.includes('&mc=5399&tr=DLV-')
+    && one.endsWith('#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end'),
+    'With a business UPI ID, Google Pay opens with ₹20, the merchant code and the reference filled in\n       ' + one);
+  const oneText = await td.textContent(`${box} .pay-steps`);
+  check(/2\s*Check it says ₹20, then pay/.test(oneText) && /3\s*Come back and tap I've paid/.test(oneText), 'Business UPI: three steps, tap your app, check ₹20 and pay, tap I\'ve paid');
+  await noSideScroll(td, 'fee business'); await smallTargets(td, 'fee business');
+  await shot(td, 'item-fee-business-dark');
   const bd = await personPage(BOSS, 'dark');
   await bd.goto(SITE + '/pages/platform.html'); await settle(bd);
   await bd.waitForSelector(`#fee-list [data-fee="${rid}"]`);
   await shot(bd, 'platform-fees-dark');
 
   // Turn the fee back off so later test files start as before.
-  sql(`update public.platform_settings set delivery_fee_inr = 0, fee_upi_id = null`);
+  sql(`update public.platform_settings set delivery_fee_inr = 0, fee_upi_id = null, fee_upi_business = false, fee_merchant_code = null`);
   check(!sqlTry(`select 1`).error, 'Fee switched back off');
 
   check(errors.length === 0, 'No script errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
