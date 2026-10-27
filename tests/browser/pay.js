@@ -78,6 +78,16 @@ const errors = [];
     'On a phone: ₹250 to Demo Owner in large type, then three numbered steps: tap your app, paste the UPI ID, pay ₹250');
   check((await ta.getAttribute('[data-pay-link]', 'href')) === expected && (await ta.textContent('[data-pay-link]')).trim() === 'Open payment link',
     'Other ways to pay keeps the filled-in upi:// link');
+  const q = expected.slice(expected.indexOf('?'));
+  const tries = await ta.$$eval('.pay [data-pay-try]', (els) => els.map((e) => [e.textContent.trim(), e.getAttribute('href')]));
+  const GP = 'com.google.android.apps.nbu.paisa.user';
+  check(tries.length === 7 && tries[0][0] === 'Google Pay (one tap)' && tries[0][1] === 'tez://upi/pay' + q
+    && tries[1][1] === 'intent://pay' + q + '#Intent;scheme=upi;package=' + GP + ';end'
+    && tries[2][1] === 'intent://upi/pay' + q + '#Intent;scheme=tez;package=' + GP + ';end'
+    && tries[3][1] === 'gpay://upi/pay' + q
+    && tries[4][1] === 'tez://upi/pay?pa=' + UPI + '&pn=Demo%20Owner&am=250.00&cu=INR'
+    && tries[5][1] === 'phonepe://pay' + q && tries[6][1] === 'paytmmp://pay' + q,
+    'Below the steps, "Or pay in one tap" offers a Google Pay link (tez://) with 4 other Google Pay formats, then PhonePe and Paytm, all with ₹250 filled in\n       ' + JSON.stringify(tries.map((x) => x[1].slice(0, 30))));
   check(!(await ta.content()).includes('whatsapp://pay'), 'No button hands the payment to WhatsApp');
   await noSideScroll(ta, 'item pay android'); await smallTargets(ta, 'item pay android');
   await shot(ta, 'item-pay-android-light');
@@ -92,6 +102,9 @@ const errors = [];
   const iapps = await ti.$$eval('.pay [data-pay-app]', (els) => els.map((e) => e.getAttribute('href')));
   check(iapps[0] === 'gpay://' && iapps[1] === 'phonepe://' && iapps[2] === 'paytmmp://',
     'On iPhone each button uses that app\'s own link');
+  const itries = await ti.$$eval('.pay [data-pay-try]', (els) => els.map((e) => e.getAttribute('href')));
+  check(itries.length === 5 && itries[0] === 'gpay://upi/pay' + q && itries[1] === 'tez://upi/pay' + q && itries[3] === 'phonepe://pay' + q,
+    'On iPhone the one-tap links use gpay://upi/pay, tez://upi/pay, then PhonePe and Paytm');
 
   // 2. Copy UPI ID, the fallback for iPhones and phones where the link opens nothing.
   await t.click('[data-pay-copy]');

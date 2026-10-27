@@ -2017,3 +2017,8 @@ html:active-view-transition-type(back)::view-transition-old(root) { animation: v
   body[data-access]:not([data-auth]) > *,
   body[data-access]:not([data-auth]) :is(.app-header__title, .brand__society, .action-bar__inner) { animation-delay: 8s !important; }
 }
+
+/* One-tap payment links in several formats (js/pay.js linksBox) */
+.pay__links { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.pay__links-alt { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pay__links-alt .btn { flex: 1 1 140px; }

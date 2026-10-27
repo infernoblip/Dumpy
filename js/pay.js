@@ -93,6 +93,48 @@
     return kind === "android" ? "intent://pay" + query + "#Intent;scheme=upi;package=" + app.android + ";end" : ONE_TAP_IOS[app.name] + query;
   }
 
+  // One-tap payment links in several formats, for the person to try one after
+  // another. Google Pay checks payment links to personal UPI IDs and sometimes
+  // refuses them ("bank limit reached"); whether it does can depend on the link
+  // format, so the Google Pay formats come first:
+  //   tez://upi/pay       Google Pay's own scheme (Android and iPhone)
+  //   intent upi + package  the standard upi://pay link, sent only to Google Pay
+  //   intent tez + package  Google Pay's scheme, sent only to Google Pay
+  //   gpay://upi/pay      Google Pay's newer scheme
+  //   short tez link      only the UPI ID, name, amount and currency (no note)
+  // then PhonePe and Paytm in their own formats.
+  var GPAY = "com.google.android.apps.nbu.paisa.user";
+  function shortQuery(href) {
+    return "?" + ["pa", "pn", "am", "cu"].map(function (k) {
+      var m = new RegExp("[?&]" + k + "=([^&]*)").exec(href);
+      return m ? k + "=" + m[1] : "";
+    }).filter(Boolean).join("&");
+  }
+  function payLinks(href, kind) {
+    var q = href.slice(href.indexOf("?"));
+    var gp = kind === "android"
+      ? [["Google Pay", "tez://upi/pay" + q],
+         ["Google Pay link 2", "intent://pay" + q + "#Intent;scheme=upi;package=" + GPAY + ";end"],
+         ["Google Pay link 3", "intent://upi/pay" + q + "#Intent;scheme=tez;package=" + GPAY + ";end"],
+         ["Google Pay link 4", "gpay://upi/pay" + q],
+         ["Google Pay link 5", "tez://upi/pay" + shortQuery(href)]]
+      : [["Google Pay", "gpay://upi/pay" + q],
+         ["Google Pay link 2", "tez://upi/pay" + q],
+         ["Google Pay link 3", "gpay://upi/pay" + shortQuery(href)]];
+    return gp.concat(kind === "android"
+      ? [["PhonePe", "phonepe://pay" + q], ["Paytm", "paytmmp://pay" + q]]
+      : [["PhonePe", "phonepe://pay" + q], ["Paytm", "paytmmp://upi/pay" + q]]);
+  }
+  function linksBox(href, kind, price) {
+    var list = payLinks(href, kind);
+    return '<div class="pay__links" data-pay-links><p class="pay-step__t">Or pay in one tap</p>' +
+      '<p class="small muted">Opens the app with ' + esc(price) + ' filled in. If the app shows an error, go back and try the next link.</p>' +
+      '<a class="btn btn--outline btn--block" href="' + esc(list[0][1]) + '" data-pay-try="1">' + esc(list[0][0]) + " (one tap)</a>" +
+      '<div class="pay__links-alt">' + list.slice(1).map(function (x, i) {
+        return '<a class="btn btn--outline btn--sm" href="' + esc(x[1]) + '" data-pay-try="' + (i + 2) + '">' + esc(x[0]) + "</a>";
+      }).join("") + "</div></div>";
+  }
+
   // How to pay, as a big amount and numbered steps. Used for item payments
   // and the Dumpy fee.
   //   o.href     the upi://pay link (UPI ID, name, amount, note)
@@ -135,6 +177,7 @@
     }
     if (o.last) html += step(++n, o.last[0], o.last[1]);
     html += "</ol>";
+    if (kind && !o.oneTap) html += linksBox(href, kind, o.price);
     html += '<details class="pay__more" data-pay-qr><summary>Other ways to pay</summary><div class="stack-sm">' +
       (kind && o.oneTap ? '<p class="small muted">Pay the UPI ID yourself in any UPI app:</p>' + copyRow(upi) : "") +
       '<a class="btn btn--outline btn--block" href="' + esc(href) + '" data-pay-link>Open payment link</a>' +
@@ -289,5 +332,5 @@
     input.disabled = false;
   });
 
-  Dumpy.pay = { link: link, steps: steps, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
+  Dumpy.pay = { link: link, steps: steps, payLinks: payLinks, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
 })();
