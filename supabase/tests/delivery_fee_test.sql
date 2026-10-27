@@ -271,6 +271,31 @@ select dumpy_ftests.ok((select fee_status || coalesce(fee_upi_id, '-') from publ
 select dumpy_ftests.refused($$ select public.platform_settle_delivery_fee((select id from dumpy_ftests.ids where name = 'd1'), 'waive') $$,
   'A member cannot settle fees');
 
+-- -------------------------------------------------- business UPI ID (20261026120000)
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0005');
+select dumpy_ftests.refused($$ select public.platform_set_fee_settings(25, 'q123456@ybl', 'Dumpy', true, '12') $$,
+  'The merchant code is 4 digits', '22023');
+select public.platform_set_fee_settings(25, 'Q123456@ybl', 'Dumpy', true, '5399');
+select dumpy_ftests.ok((select fee_upi_business::text || ' ' || fee_merchant_code from public.platform_fee_settings()) = 'true 5399',
+  'A platform admin marks the fee UPI ID as a business one, with its merchant code');
+select public.platform_settle_delivery_fee((select id from dumpy_ftests.ids where name = 'd1'), 'unpaid');
+
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0002');
+select dumpy_ftests.ok((select fee_upi_id || ' ' || fee_upi_business::text || ' ' || fee_merchant_code
+                        from public.get_delivery('7e570000-0000-4000-8000-0000000f1001')) = 'Q123456@ybl true 5399',
+  'The taker who owes the fee learns it is a business UPI ID, so the app opens with the amount filled in');
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0001');
+select dumpy_ftests.ok((select coalesce(fee_upi_business::text, '-') || coalesce(fee_merchant_code, '-')
+                        from public.get_delivery('7e570000-0000-4000-8000-0000000f1001')) = '--',
+  'The owner does not get the payment details');
+select dumpy_ftests.refused($$ select public.platform_set_fee_settings(25, 'q123456@ybl', 'Dumpy', true, '5399') $$,
+  'A member cannot change the business setting');
+
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0005');
+select public.platform_set_fee_settings(25, 'Q123456@ybl', 'Dumpy', false, '5399');
+select dumpy_ftests.ok((select fee_upi_business::text || coalesce(fee_merchant_code, '-') from public.platform_fee_settings()) = 'false-',
+  'Turning business off clears the merchant code');
+
 select dumpy_ftests.act_as(null);
 select dumpy_ftests.refused($$ select public.delivery_fee() $$, 'Signed-out visitors cannot call the fee functions');
 

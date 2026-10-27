@@ -52,12 +52,59 @@ const errors = [];
   const u = new URL(href.replace('upi://', 'https://upi.example/'));
   check(u.searchParams.get('pa') === UPI && u.searchParams.get('am') === '250.00' && u.searchParams.get('cu') === 'INR'
     && u.searchParams.get('tn') === 'Dumpy: Folding study table & stool', 'A UPI app reads back the same ID, amount and note (the & in the title is escaped)');
-  check((await t.textContent('[data-pay-link]')).trim() === 'Pay ₹250', 'The button says Pay ₹250');
-  check(!(await t.evaluate(() => !!window.qrcode)) || (await t.locator('[data-pay-qr] svg path').count()) === 1, 'A QR code of the same link is drawn in the browser');
+  check((await t.textContent('[data-pay-link]')).trim() === 'Open payment link', 'The filled-in link is offered under Other ways to pay');
+  check((await t.textContent('.pay-steps')).includes('Scan this code with your phone') && (await t.textContent('.pay-steps')).includes('Pay ₹250') && (await t.textContent('.pay__sum')).includes('₹250to Demo Owner'),
+    'Off a phone, the steps say to scan the code and enter ₹250');
+  check(!(await t.evaluate(() => !!window.qrcode)) || (await t.locator('.pay__qrcode svg path').count()) === 1, 'A QR code of the same link is drawn in the browser');
   check(await t.evaluate(() => !!window.qrcode), 'The pinned QR library loaded');
-  check(!(await t.evaluate(() => document.querySelector('[data-pay-qr]').open)), 'On a phone the QR code starts folded away');
+  check(!(await t.evaluate(() => document.querySelector('[data-pay-qr]').open)), 'Other ways to pay starts folded away');
   await noSideScroll(t, 'item pay'); await smallTargets(t, 'item pay');
   await shot(t, 'item-pay-light');
+
+  // On phones, Pay offers one button per UPI app, so the phone can't hand the
+  // payment to WhatsApp. Android gets intent links naming each app's package.
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+  const ta = await personPage(TAKER, { userAgent: ANDROID });
+  await ta.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(ta); await ta.waitForSelector('.pay [data-pay-app]');
+  const apps = await ta.$$eval('.pay [data-pay-app]', (els) => els.map((e) => [e.textContent.trim(), e.getAttribute('href'), e.dataset.payId]));
+  check(JSON.stringify(apps.map((a) => a[0])) === '["Google Pay","PhonePe","Paytm"]', 'On Android, Pay offers Google Pay, PhonePe and Paytm');
+  const launch = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=';
+  check(apps[0][1] === launch + 'com.google.android.apps.nbu.paisa.user;end' && apps[1][1] === launch + 'com.phonepe.app;end'
+    && apps[2][1] === launch + 'net.one97.paytm;end' && apps.every((a) => a[2] === UPI),
+    'Each Android button opens that app by its package (no payment link, which Google Pay refuses for personal UPI IDs) and carries the UPI ID to copy');
+  const stepsText = await ta.textContent('.pay-steps');
+  check(/1\s*Tap the app you pay with/.test(stepsText) && /2\s*Paste the UPI ID/.test(stepsText) && /3\s*Pay ₹250/.test(stepsText) && /₹250\s*to Demo Owner/.test(await ta.textContent('.pay__sum')),
+    'On a phone: ₹250 to Demo Owner in large type, then three numbered steps: tap your app, paste the UPI ID, pay ₹250');
+  check((await ta.getAttribute('[data-pay-link]', 'href')) === expected && (await ta.textContent('[data-pay-link]')).trim() === 'Open payment link',
+    'Other ways to pay keeps the filled-in upi:// link');
+  const q = expected.slice(expected.indexOf('?'));
+  const tries = await ta.$$eval('.pay [data-pay-try]', (els) => els.map((e) => [e.textContent.trim(), e.getAttribute('href')]));
+  const GP = 'com.google.android.apps.nbu.paisa.user';
+  check(tries.length === 7 && tries[0][0] === 'Google Pay (one tap)' && tries[0][1] === 'tez://upi/pay' + q
+    && tries[1][1] === 'intent://pay' + q + '#Intent;scheme=upi;package=' + GP + ';end'
+    && tries[2][1] === 'intent://upi/pay' + q + '#Intent;scheme=tez;package=' + GP + ';end'
+    && tries[3][1] === 'gpay://upi/pay' + q
+    && tries[4][1] === 'tez://upi/pay?pa=' + UPI + '&pn=Demo%20Owner&am=250.00&cu=INR'
+    && tries[5][1] === 'phonepe://pay' + q && tries[6][1] === 'paytmmp://pay' + q,
+    'Below the steps, "Or pay in one tap" offers a Google Pay link (tez://) with 4 other Google Pay formats, then PhonePe and Paytm, all with ₹250 filled in\n       ' + JSON.stringify(tries.map((x) => x[1].slice(0, 30))));
+  check(!(await ta.content()).includes('whatsapp://pay'), 'No button hands the payment to WhatsApp');
+  await noSideScroll(ta, 'item pay android'); await smallTargets(ta, 'item pay android');
+  await shot(ta, 'item-pay-android-light');
+  await ta.evaluate(() => navigator.clipboard.writeText('nothing yet'));
+  await ta.click('.pay [data-pay-app="Google Pay"]');
+  await ta.waitForFunction(() => /UPI ID copied/.test(document.querySelector('[data-pay-status-line]').textContent));
+  check((await ta.evaluate(() => navigator.clipboard.readText())) === UPI, 'Tapping Google Pay copies the UPI ID, then opens the app');
+  check((await ta.textContent('[data-pay-where]')).includes('In Google Pay, tap “Pay UPI ID or number”') && await ta.evaluate(() => document.querySelector('[data-pay-step="1"]').classList.contains('is-done')),
+    'Step 1 is ticked and step 2 says where to paste in Google Pay');
+  const ti = await personPage(TAKER, { userAgent: IPHONE });
+  await ti.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(ti); await ti.waitForSelector('.pay [data-pay-app]');
+  const iapps = await ti.$$eval('.pay [data-pay-app]', (els) => els.map((e) => e.getAttribute('href')));
+  check(iapps[0] === 'gpay://' && iapps[1] === 'phonepe://' && iapps[2] === 'paytmmp://',
+    'On iPhone each button uses that app\'s own link');
+  const itries = await ti.$$eval('.pay [data-pay-try]', (els) => els.map((e) => e.getAttribute('href')));
+  check(itries.length === 5 && itries[0] === 'gpay://upi/pay' + q && itries[1] === 'tez://upi/pay' + q && itries[3] === 'phonepe://pay' + q,
+    'On iPhone the one-tap links use gpay://upi/pay, tez://upi/pay, then PhonePe and Paytm');
 
   // 2. Copy UPI ID, the fallback for iPhones and phones where the link opens nothing.
   await t.click('[data-pay-copy]');
@@ -72,7 +119,7 @@ const errors = [];
   require('child_process').execSync('npm pack -q jsqr@1.4.0 >/dev/null && tar xzf jsqr-1.4.0.tgz', { cwd: jsqrDir });
   await t.addScriptTag({ path: path.join(jsqrDir, 'package/dist/jsQR.js') });
   const decoded = await t.evaluate(async () => {
-    const svg = document.querySelector('[data-pay-qr] svg');
+    const svg = document.querySelector('.pay__qrcode svg');
     const img = new Image();
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
     await img.decode();
@@ -133,7 +180,7 @@ const errors = [];
   // 6. Larger screens show the QR code straight away; dark mode.
   const wide = await personPage(TAKER, { viewport: { width: 1024, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
   await wide.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(wide); await wide.waitForSelector('.pay');
-  check(await wide.evaluate(() => document.querySelector('[data-pay-qr]').open), 'On a larger screen the QR code is shown straight away');
+  check(await wide.isVisible('.pay__qrcode svg'), 'On a larger screen the QR code is shown straight away');
   await shot(wide, 'item-pay-wide-light');
   const dark = await personPage(TAKER, { colorScheme: 'dark' });
   await dark.goto(SITE + '/pages/item.html?id=' + TABLE); await settle(dark); await dark.waitForSelector('.pay');

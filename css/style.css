@@ -1423,6 +1423,46 @@ a.row-card__title:hover span { text-decoration: underline; text-underline-offset
 .pay__qr figure { margin: var(--space-2) 0; width: min(240px, 100%); }
 .pay__qr svg { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); background: #fff; }
 .pay__switch { gap: var(--space-3); }
+/* Paying, as numbered steps. On phones each app button copies the UPI ID and
+   opens the app, so Pay never lands in WhatsApp or a refused payment link. */
+.pay__sum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.pay__sum-amount { font: 700 2.25rem/1.1 var(--font-display); color: var(--heading); }
+.pay__sum-to { font-size: 1.0625rem; color: var(--muted); overflow-wrap: anywhere; }
+.pay-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4, 20px); }
+.pay-step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--space-3); align-items: start; }
+/* A thin line joins each step's number to the next one. */
+.pay-step:not(:last-child)::before {
+  content: ""; position: absolute; left: 15px; top: 36px; bottom: calc(-1 * var(--space-4, 20px) + 4px);
+  width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--brand) 25%, transparent);
+}
+.pay-step.is-done .pay-step__n { font-size: 0; }
+.pay-step.is-done .pay-step__n::after { content: "✓"; font-size: 1rem; }
+.pay-step__n {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--brand); color: var(--brand-ink); font: 650 1rem/1 var(--font-display);
+}
+.pay-step__body { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding-top: 4px; }
+.pay-step__t { font: 650 1.0625rem/1.35 var(--font-display); color: var(--heading); }
+.pay-step .pay__upi { flex-wrap: wrap; }
+.pay-step .pay__upi p { flex-basis: 100%; }
+.pay__amount { font-size: 1.25rem; color: var(--brand); white-space: nowrap; }
+.pay__apps { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
+.pay__apps-status { color: var(--brand); font-weight: 650; }
+.pay__apps-status:empty { display: none; }
+.pay__qrcode { margin: 0; width: min(220px, 100%); }
+.pay__qrcode svg { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); background: #fff; }
+.pay__more summary {
+  display: flex; align-items: center; gap: 6px; min-height: var(--tap); cursor: pointer;
+  font: 600 1rem/1.2 var(--font-display); color: var(--brand); list-style: none;
+}
+.pay__more summary::-webkit-details-marker { display: none; }
+.pay__more summary::after {
+  content: ""; width: 18px; height: 18px; background: currentColor;
+  -webkit-mask: var(--chevron) center / contain no-repeat; mask: var(--chevron) center / contain no-repeat;
+  transition: transform 0.45s var(--spring-bouncy);
+}
+.pay__more[open] summary::after { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .pay__more summary::after { transition: none; } }
 
 /* Dumpy's delivery fee: a note in the delivery form, and totals on Run Dumpy. */
 [data-fee-note] { margin-top: var(--space-2); }
@@ -1977,3 +2017,8 @@ html:active-view-transition-type(back)::view-transition-old(root) { animation: v
   body[data-access]:not([data-auth]) > *,
   body[data-access]:not([data-auth]) :is(.app-header__title, .brand__society, .action-bar__inner) { animation-delay: 8s !important; }
 }
+
+/* One-tap payment links in several formats (js/pay.js linksBox) */
+.pay__links { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.pay__links-alt { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pay__links-alt .btn { flex: 1 1 140px; }

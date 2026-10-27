@@ -214,19 +214,21 @@
     }
     var upi = d.fee_upi_id;
     var P = Dumpy.pay;
-    var href = upi && P ? P.link(upi, d.fee_payee_name || "Dumpy", d.fee_inr, "delivery " + d.fee_ref) : null;
-    var qr = href ? P.qrSvg(href) : "";
-    return head +
-      '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's " + price +
-        " delivery fee. Settle any tip directly with " + esc(d.helper_name || "the helper") + " as you agreed.</p>" +
-      (href ? '<a class="btn btn--primary btn--lg btn--block" href="' + esc(href) + '" data-fee-link>Pay ' + price + " to Dumpy</a>" : "") +
-      (upi ? '<div class="pay__upi"><p><span class="small muted">UPI ID</span><br><span class="pay__id" translate="no">' + esc(upi) + "</span></p>" +
-        '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>" : "") +
-      (qr ? '<details class="pay__qr" data-pay-qr><summary>Show QR code</summary>' +
-        '<figure role="img" aria-label="QR code to pay Dumpy ' + price + ' by UPI">' + qr + "</figure>" +
-        '<p class="small muted">Scan with any UPI app on another phone.</p></details>' : "") +
-      '<p class="small muted">Put reference <strong translate="no">' + esc(d.fee_ref) + "</strong> in the payment note (Pay fills it in). Then tap I've paid.</p>" +
-      '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button></div>';
+    var href = null;
+    if (upi && P) {
+      href = P.link(upi, d.fee_payee_name || "Dumpy", d.fee_inr, "delivery " + d.fee_ref);
+      // Business UPI IDs: add the merchant code and a transaction reference,
+      // which merchant payments expect.
+      if (d.fee_upi_business) href += (d.fee_merchant_code ? "&mc=" + d.fee_merchant_code : "") + "&tr=" + encodeURIComponent(d.fee_ref);
+    }
+    var paidBtn = '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button>';
+    return head.replace(">Dumpy delivery fee · " + price + "<", ">Dumpy delivery fee<") +
+      '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's delivery fee. Any tip goes straight to " +
+        esc(d.helper_name || "the helper") + ", as you agreed.</p>" +
+      (href ? P.steps({ href: href, price: price, payee: d.fee_payee_name || "Dumpy", note: d.fee_upi_business ? "" : d.fee_ref,
+                        last: ["Come back and tap I've paid", paidBtn], oneTap: !!d.fee_upi_business })
+        : '<p class="small">Ask the person who runs Dumpy how to pay.</p>' + paidBtn) +
+      "</div>";
   }
 
   // An arrangement exists: show it, with Change and Cancel.
