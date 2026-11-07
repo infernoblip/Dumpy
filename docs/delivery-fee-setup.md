@@ -12,6 +12,21 @@ Dumpy earns a small flat fee each time a neighbour helper delivers an item.
 - The fee is copied onto each delivery when it is booked, so changing the amount later never changes a delivery that is already booked.
 - Dumpy still holds no money. The fee goes straight from the taker's UPI app to your UPI ID.
 
+## Paid items: one payment, and the seller pays Dumpy first
+
+When a helper delivers an item that has a price (and the item was not already marked paid when the helper was booked):
+
+1. The helper delivers the item.
+2. **The seller pays Dumpy's delivery fee first**, to Dumpy's UPI ID, and taps **I've paid**.
+3. **You check the money arrived** and tap **Confirm received** on Run Dumpy.
+4. Only then does the buyer pay the seller **the item price + the fee** in one UPI payment (for example ₹250 + ₹20 = ₹270), so the seller gets the fee back.
+
+Until you confirm the seller's fee, Dumpy hides the seller's UPI ID from the buyer and the seller can't mark the item paid. Both of them see red warnings that explain this when they book the helper, before delivery and after it. If you tap **Not received**, the buyer is locked out again. If you **Waive** the fee, the buyer just pays the item price.
+
+Free items, and items already paid for, work as before: the taker pays the fee to Dumpy.
+
+To run this, paste `supabase/migrations/20261107090000_one_payment.sql` into the SQL Editor after `20261026120000_business_upi.sql`.
+
 ## Steps
 
 1. **Run the migration.** In the Supabase dashboard (project dumpy-mumbai), open **SQL Editor > New query**. Paste the whole of `supabase/migrations/20261025140000_delivery_fee.sql` and click **Run**. It should say "Success. No rows returned". The fee stays off until you finish step 3, so nothing changes for neighbours yet.

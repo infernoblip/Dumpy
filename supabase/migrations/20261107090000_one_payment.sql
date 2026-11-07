@@ -8,12 +8,21 @@
 -- before, with the seller as the payer). Free items, and items already paid
 -- for, keep the old way: the taker pays the fee to Dumpy.
 --
+-- The seller pays Dumpy first. Until a platform admin confirms the seller's
+-- fee arrived (or waives it), the seller cannot be paid through Dumpy:
+-- get_contact hides the seller's UPI ID from the taker, and the seller cannot
+-- mark the item paid.
+--
 -- Dumpy still never holds money: both payments go person to person by UPI.
 --
 -- Changes the delivery fee functions (20261025140000 and 20261026120000):
 --   * arrange_delivery picks who pays the fee (the seller or the taker) and
 --     refuses a new helper booking while that person owes an earlier fee
 --   * get_delivery also returns fee_via_seller
+--   * new seller_fee_pending(listing): a helper delivery whose fee the seller
+--     pays, and which Dumpy has not confirmed or waived yet
+--   * get_contact (stage 6) hides the seller's UPI ID while that is true
+--   * set_paid (stage 8) refuses to mark the item paid while that is true
 -- No table changes. Run 20261026120000_business_upi.sql first.
 
 -- ------------------------------------------------------- arrange_delivery
@@ -176,6 +185,104 @@ as $$
   limit 1
 $$;
 
+-- ---------------------------------------------------- seller_fee_pending
+create or replace function public.seller_fee_pending(p_listing_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.deliveries d
+    join public.listings l on l.id = d.listing_id
+    where d.listing_id = p_listing_id
+      and d.mode = 'helper' and d.fee_inr > 0
+      and d.status in ('open', 'claimed', 'delivered')
+      and d.fee_payer_id = l.owner_id
+      and public.delivery_fee_status(d) not in ('confirmed', 'waived', 'none')
+  )
+$$;
+
+-- ------------------------------------------------------------ get_contact
+-- As in stage 6, but the seller's UPI ID stays hidden from the taker while the
+-- seller still owes Dumpy the delivery fee (seller_fee_pending).
+create or replace function public.get_contact(p_listing_id uuid)
+returns table (
+  user_id uuid,
+  is_owner boolean,
+  display_name text,
+  tower text,
+  flat text,
+  phone text,
+  upi_id text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with pair as (
+    select l.owner_id, r.requester_id, l.price_inr
+    from public.listings l
+    join public.requests r on r.listing_id = l.id and r.status = 'accepted'
+    where l.id = p_listing_id
+      and l.status in ('reserved', 'done')
+      and public.is_member(l.society_id)
+      and auth.uid() in (l.owner_id, r.requester_id)
+  )
+  select p.user_id,
+         p.user_id = pair.owner_id,
+         p.display_name, p.tower, p.flat, p.phone,
+         case when p.user_id = pair.owner_id and pair.price_inr > 0
+                   and not public.seller_fee_pending(p_listing_id) then p.upi_id end
+  from pair
+  join public.profiles p
+    on p.user_id = case when auth.uid() = pair.owner_id then pair.requester_id else pair.owner_id end
+$$;
+
+-- --------------------------------------------------------------- set_paid
+-- As in stage 8, but the seller cannot mark the item paid while they still
+-- owe Dumpy the delivery fee.
+create or replace function public.set_paid(p_listing_id uuid, p_paid boolean)
+returns timestamptz
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  _listing public.listings;
+  _paid_at timestamptz;
+begin
+  select * into _listing from public.listings where id = p_listing_id for update;
+
+  if _listing.id is null or _listing.owner_id is distinct from auth.uid()
+     or not public.is_member(_listing.society_id) then
+    raise exception 'Only the item''s owner can do this' using errcode = '42501';
+  end if;
+  if _listing.price_inr = 0 then
+    raise exception 'Free items have nothing to pay' using errcode = '55000';
+  end if;
+  if _listing.status not in ('reserved', 'done') then
+    raise exception 'This item has not been given to anyone yet' using errcode = '55000';
+  end if;
+  if p_paid and public.seller_fee_pending(p_listing_id) then
+    raise exception 'Pay Dumpy''s delivery fee first. Once Dumpy confirms it, the taker can pay you.' using errcode = '55000';
+  end if;
+
+  update public.requests
+  set paid_at = case when p_paid then coalesce(paid_at, now()) end
+  where listing_id = _listing.id and status = 'accepted'
+  returning paid_at into _paid_at;
+
+  return _paid_at;
+end
+$$;
+
 -- --------------------------------------------------------------- grants
-revoke execute on function public.get_delivery(uuid) from public, anon;
-grant execute on function public.get_delivery(uuid) to authenticated;
+revoke execute on function public.get_delivery(uuid), public.get_contact(uuid), public.set_paid(uuid, boolean),
+  public.seller_fee_pending(uuid) from public, anon;
+grant execute on function public.get_delivery(uuid), public.get_contact(uuid), public.set_paid(uuid, boolean)
+  to authenticated;

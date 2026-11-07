@@ -315,6 +315,9 @@ from generate_series(5, 7) n;
 select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0001');
 select public.accept_request(('7e570000-0000-4000-8000-0000000f200' || n)::uuid) from generate_series(5, 7) n;
 select public.set_paid('7e570000-0000-4000-8000-0000000f1006', true);
+reset role;
+update public.profiles set upi_id = 'test.owner@okaxis' where user_id = '7e570000-0000-4000-8000-0000000f0001';
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0001');
 
 -- The taker still owes the lamp's fee, but the table's fee is the seller's, so booking works.
 insert into dumpy_ftests.ids
@@ -328,7 +331,14 @@ select dumpy_ftests.refused($$
   select public.arrange_delivery('7e570000-0000-4000-8000-0000000f1006', 'helper', dumpy_ftests.slot(1, 12), '')
 $$, 'An item already paid for: the taker pays the fee, and still owes the lamp''s fee, so no helper', '55000');
 
+select dumpy_ftests.refused($$ select public.set_paid('7e570000-0000-4000-8000-0000000f1005', true) $$,
+  'Before Dumpy confirms the seller''s fee, the seller cannot mark the item paid', '55000');
+
 select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0002');
+select dumpy_ftests.ok((select coalesce(upi_id, '-') from public.get_contact('7e570000-0000-4000-8000-0000000f1005')) = '-',
+  'Before Dumpy confirms the seller''s fee, the taker does not get the seller''s UPI ID');
+select dumpy_ftests.ok((select upi_id from public.get_contact('7e570000-0000-4000-8000-0000000f1006')) = 'test.owner@okaxis',
+  'An item with no fee through the seller still shows the seller''s UPI ID');
 select dumpy_ftests.ok((select fee_via_seller::text || ' ' || fee_i_pay::text || ' ' || coalesce(fee_upi_id, '-')
                         from public.get_delivery('7e570000-0000-4000-8000-0000000f1005')) = 'true false -',
   'The taker sees the fee goes through the seller, and gets no Dumpy UPI ID');
@@ -355,6 +365,18 @@ select dumpy_ftests.ok((select fee_status from public.get_delivery('7e570000-000
   'The seller marks the fee passed on');
 select dumpy_ftests.ok(public.arrange_delivery('7e570000-0000-4000-8000-0000000f1007', 'helper', dumpy_ftests.slot(1, 12), '') is not null,
   'Then a helper can be booked again');
+
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0002');
+select dumpy_ftests.ok((select coalesce(upi_id, '-') from public.get_contact('7e570000-0000-4000-8000-0000000f1005')) = '-',
+  'Seller says they paid, but until Dumpy confirms, the taker still gets no UPI ID');
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0005');
+select public.platform_settle_delivery_fee((select id from dumpy_ftests.ids where name = 'p1'), 'confirm');
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0002');
+select dumpy_ftests.ok((select upi_id from public.get_contact('7e570000-0000-4000-8000-0000000f1005')) = 'test.owner@okaxis',
+  'Once Dumpy confirms the seller''s fee, the taker gets the seller''s UPI ID to pay');
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0001');
+select dumpy_ftests.ok(public.set_paid('7e570000-0000-4000-8000-0000000f1005', true) is not null,
+  'and the seller can mark the item paid');
 
 select dumpy_ftests.act_as(null);
 select dumpy_ftests.refused($$ select public.delivery_fee() $$, 'Signed-out visitors cannot call the fee functions');

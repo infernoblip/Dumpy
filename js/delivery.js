@@ -166,7 +166,8 @@
     // A paid item delivered by a helper: the fee is added to what the taker
     // pays the seller, in one payment (js/pay.js).
     if (Dumpy.pay && Dumpy.pay.withFee) {
-      Dumpy.pay.withFee(box.dataset.deliveryFor, d && d.fee_via_seller && hasFee(d) && d.fee_status !== "waived" ? d.fee_inr : 0);
+      var viaFee = d && d.fee_via_seller && hasFee(d) && d.fee_status !== "waived" ? d.fee_inr : 0;
+      Dumpy.pay.withFee(box.dataset.deliveryFor, viaFee, viaFee ? d.fee_status : "");
     }
     if (d && (d.status === "open" || d.status === "claimed")) showPlan(box, d);
     else if (d && d.status === "delivered") showDelivered(box, d);
@@ -198,9 +199,13 @@
   function feeLine(fee, role, other, viaSeller) {
     var off = '<span class="muted">No fee if the delivery is called off.</span>';
     if (viaSeller) {
+      var f = rupees(fee);
       return role === "taker"
-        ? "Dumpy's <strong>" + rupees(fee) + " delivery fee</strong> is added to what you pay " + esc(other || "the owner") + ", so it's one payment. " + off
-        : esc(other || "The taker") + " pays you Dumpy's <strong>" + rupees(fee) + " delivery fee</strong> with the item price. Pass it on to Dumpy once the item arrives. " + off;
+        ? "<strong>How you pay:</strong> Dumpy's " + f + " delivery fee is added to the item price, and you pay " + esc(other || "the owner") +
+          " both in one payment. <strong>Don't pay before the item arrives and Dumpy confirms " + esc(other || "the owner") + " has paid Dumpy the " + f +
+          " fee.</strong> The pay buttons appear then. " + off
+        : "<strong>You pay Dumpy first:</strong> right after the helper delivers, you pay Dumpy's " + f + " delivery fee. " +
+          "<strong>You can't be paid until Dumpy confirms it.</strong> Then " + esc(other || "the taker") + " pays you the price + " + f + " in one payment. " + off;
     }
     var who = role === "taker" ? "You pay" : esc(other || "The taker") + " pays";
     return who + " Dumpy a <strong>" + rupees(fee) + " delivery fee</strong> by UPI, once the item arrives. " + off;
@@ -221,9 +226,15 @@
       var said = { due: "not paid yet", marked: "marked as paid", confirmed: "paid", waived: "waived" }[d.fee_status] || "";
       return head + '<p class="small muted">' + esc(other || "The taker") + " pays this to Dumpy" + (said ? " (" + said + ")" : "") + ".</p></div>";
     }
-    if (d.fee_status === "confirmed") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Dumpy got your fee. Thank you!</span></p></div>";
+    if (d.fee_status === "confirmed") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Dumpy got your fee. Thank you!" +
+      (d.fee_via_seller ? " " + esc(other || "The taker") + " can now pay you, including the " + price + " back." : "") + "</span></p></div>";
     if (d.fee_status === "waived") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Nothing to pay: this fee was waived.</span></p></div>";
     if (d.fee_status === "marked") {
+      if (d.fee_via_seller) {
+        return head + '<div class="pay-warn" role="alert"><p class="small"><strong>Waiting for Dumpy to confirm your ' + price + " fee.</strong> " +
+          esc(other || "The taker") + " can pay you once it does.</p></div>" +
+          '<p class="small muted">Reference ' + esc(d.fee_ref) + ".</p></div>";
+      }
       return head + '<p class="pay__done">' + ICON_CHECK + "<span>You marked this as paid. Thanks for keeping Dumpy going!</span></p>" +
         '<p class="small muted">Reference ' + esc(d.fee_ref) + ". Dumpy checks it arrived.</p></div>";
     }
@@ -239,8 +250,10 @@
     var paidBtn = '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button>';
     return head.replace(">Dumpy delivery fee · " + price + "<", ">Dumpy delivery fee<") +
       (d.fee_via_seller
-        ? '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. " + esc(other || "The taker") +
-            " pays you " + price + " for Dumpy's delivery fee with the item price. Please pass it on to Dumpy.</p>"
+        ? '<div class="pay-warn" role="alert" data-pay-warn><p class="pay-warn__t">' + ICON_ALERT + "<span>Pay Dumpy first</span></p>" +
+            '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. <strong>" + esc(other || "The taker") +
+            " can't pay you until you pay Dumpy's " + price + " delivery fee and Dumpy confirms it.</strong> You get the " + price +
+            " back in " + esc(other || "the taker") + "'s payment.</p></div>"
         : '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's delivery fee. Any tip goes straight to " +
             esc(d.helper_name || "the helper") + ", as you agreed.</p>") +
       (href ? P.steps({ href: href, price: price, payee: d.fee_payee_name || "Dumpy", note: d.fee_upi_business ? "" : d.fee_ref,
@@ -260,7 +273,8 @@
     if (d.mode === "helper") {
       html += '<p class="small">' + (d.tip_note ? "Tip for the helper: <strong>" + esc(d.tip_note) + "</strong>. " : "No tip agreed. ") +
         '<span class="muted">Settle any tip directly with the helper. Dumpy never collects it.</span></p>' +
-        (hasFee(d) ? '<p class="small" data-fee-line>' + feeLine(d.fee_inr, role, other, d.fee_via_seller) + "</p>" : "");
+        (hasFee(d) ? (d.fee_via_seller ? '<div class="pay-warn" data-fee-line><p class="small">' : '<p class="small" data-fee-line>') +
+          feeLine(d.fee_inr, role, other, d.fee_via_seller) + (d.fee_via_seller ? "</p></div>" : "</p>") : "");
       if (d.status === "claimed") {
         html += '<div class="person"><span class="avatar" aria-hidden="true">' + initial(d.helper_name) + "</span>" +
           '<div><p class="person__name">' + esc(d.helper_name || "A neighbour") + '</p><p class="person__meta">Helper' +
@@ -370,6 +384,7 @@
       // goes through the seller (the same rule as arrange_delivery).
       var viaSeller = keptFee !== null ? !!d.fee_via_seller : +box.dataset.price > 0 && !box.dataset.paid;
       note.innerHTML = "<span>" + feeLine(fee, role, other, viaSeller) + "</span>";
+      note.classList.toggle("pay-warn", viaSeller);
       note.hidden = false;
     });
 

@@ -237,6 +237,22 @@
   // The pay boxes on the page, so a helper delivery's fee can be added later.
   var CARDS = {};
 
+  var ICON_ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  // A big red warning box. body is HTML.
+  function warn(title, body) {
+    return '<div class="pay-warn" role="alert" data-pay-warn><p class="pay-warn__t">' + ICON_ALERT + "<span>" + title + "</span></p>" + body + "</div>";
+  }
+  // The order of payments when the seller collects Dumpy's delivery fee.
+  //   seller  the seller's name, or "You" when the seller is reading
+  //   payer   who pays the seller at the end: "you" or the buyer's name
+  function order(seller, fee, total, payer) {
+    var you = seller === "You";
+    return "<ol class=\"small\"><li>A helper delivers the item.</li><li><strong>" + seller + (you ? " pay" : " pays") + " Dumpy's " + fee +
+      " delivery fee first</strong>, to Dumpy's UPI ID.</li><li><strong>Dumpy checks the " + fee + " arrived</strong> and confirms it.</li>" +
+      "<li>Only then " + (payer === "you" ? "do you pay " + seller : "does " + payer + " pay you") + " " + total +
+      " (the item price + the " + fee + " back), in one payment.</li></ol>";
+  }
+
   function card(l, c, ownerView) {
     if (!isPaid(l) || !matched(l)) return "";
     CARDS[l.id] = { l: l, c: c, ownerView: ownerView };
@@ -247,11 +263,39 @@
     var total = l.price_inr + fee;
     var price = rupees(total);
     var split = fee ? rupees(l.price_inr) + " for the item + " + rupees(fee) + " Dumpy delivery fee" : "";
+    // The seller pays Dumpy's fee first; until Dumpy confirms it, nobody pays
+    // the seller (the database also hides their UPI ID and refuses Mark as paid).
+    var locked = fee > 0 && l.delivery_fee_state !== "confirmed";
+    // Until the delivery box has said whether there is a fee, don't show a
+    // missing UPI ID as "pay in cash": it may be hidden for that reason.
+    var waiting = !ownerView && !l.delivery_fee_known && !(c && c.upi_id) && !!Dumpy.delivery && !l.paid_at;
     var paid = !!l.paid_at;
     var other = c ? c.display_name : (ownerView ? "the taker" : "the owner");
     var hid = "pay-h-" + esc(l.id);
     var head = '<div class="pay" data-pay="' + esc(l.id) + '" role="group" aria-labelledby="' + hid + '">' +
       '<p class="pay__title" id="' + hid + '">Payment · ' + price + "</p>";
+
+    var otherName = esc(other);
+    if (locked && !paid) {
+      var fr = rupees(fee);
+      if (ownerView) {
+        var now = { upcoming: "After the helper delivers, pay Dumpy's " + fr + " delivery fee in the Delivery box below.",
+                    due: "Pay Dumpy's " + fr + " delivery fee now, in the Delivery box below.",
+                    marked: "You said you paid Dumpy's " + fr + " fee. Waiting for Dumpy to confirm it." }[l.delivery_fee_state] || "";
+        return head + warn("You can't be paid yet", '<p class="small"><strong>' + now + "</strong></p>" + order("You", fr, price, otherName) +
+            '<p class="small">Until then ' + otherName + " can't see your UPI ID, and you can't mark this paid.</p>") +
+          '<label class="switch pay__switch"><span class="switch__text"><strong>Mark as paid</strong><br><span class="small muted" data-pay-status>Locked until Dumpy confirms your fee.</span></span>' +
+          '<input type="checkbox" data-pay-toggle disabled aria-describedby="' + hid + '"></label></div>';
+      }
+      var why = { upcoming: "The item hasn't been delivered yet.",
+                  due: "The item has arrived. Waiting for " + otherName + " to pay Dumpy's " + fr + " delivery fee.",
+                  marked: otherName + " says they paid Dumpy's " + fr + " fee. Waiting for Dumpy to confirm it." }[l.delivery_fee_state] || "";
+      return head.replace(">Payment · " + price + "<", ">Payment<") +
+        '<p class="pay__sum"><span class="pay__sum-amount">' + price + '</span><span class="pay__sum-to">to ' + otherName + " later</span></p>" +
+        '<p class="small pay__breakdown">' + esc(split) + ".</p>" +
+        warn("Don't pay " + otherName + " yet", '<p class="small"><strong>' + why + "</strong></p>" + order(otherName, fr, price, "you") +
+          '<p class="small">The pay buttons appear here once Dumpy confirms. Dumpy never holds money.</p>') + "</div>";
+    }
 
     if (ownerView) {
       var myUpi = Dumpy.state && Dumpy.state.profile && Dumpy.state.profile.upi_id;
@@ -269,6 +313,9 @@
     }
 
     var upi = c && c.upi_id && UPI_RE.test(c.upi_id) ? c.upi_id : null;
+    if (!upi && waiting) {
+      return head + '<p class="small muted">Checking how to pay…</p></div>';
+    }
     if (!upi) {
       return head + '<p class="small">' + esc(other) + " has not added a UPI ID. Pay " + price + " in cash when you collect it." +
         (fee ? " That's " + split + "." : "") + "</p></div>";
@@ -277,7 +324,8 @@
     var href = link(upi, c.display_name, total, l.title + (fee ? " + delivery" : ""));
     head = head.replace(">Payment · " + price + "<", ">Payment<");
     return head + steps({ href: href, price: price, payee: c.display_name,
-      breakdown: fee ? esc(split) + ". " + esc(c.display_name) + " passes the fee on to Dumpy. No fee if the delivery is called off." : "" }) + "</div>";
+      breakdown: fee ? esc(split) + '.</p><p class="small pay-ok" data-pay-ok><strong>Dumpy confirmed ' + esc(c.display_name) +
+        " paid the " + rupees(fee) + " delivery fee.</strong> You can pay now: the " + rupees(fee) + " goes back to " + esc(c.display_name) + "." : "" }) + "</div>";
   }
 
   async function copy(text) {
@@ -349,12 +397,18 @@
 
   // Add (or remove, with 0) Dumpy's delivery fee to an item's pay box: the
   // taker then pays the seller both in one payment.
-  function withFee(listingId, fee) {
+  //   fee    the fee the seller collects (0 if none)
+  //   state  the fee's status: upcoming, due, marked, confirmed or waived
+  function withFee(listingId, fee, state) {
     var k = CARDS[listingId];
     var box = document.querySelector('.pay[data-pay="' + listingId + '"]');
     fee = fee > 0 ? fee : 0;
-    if (!k || !box || (k.l.delivery_fee_extra || 0) === fee) return;
+    state = fee ? state || "" : "";
+    if (!k || !box) return;
+    if (k.l.delivery_fee_known && (k.l.delivery_fee_extra || 0) === fee && (k.l.delivery_fee_state || "") === state) return;
+    k.l.delivery_fee_known = true;
     k.l.delivery_fee_extra = fee;
+    k.l.delivery_fee_state = state;
     var open = box.querySelector("[data-pay-qr]");
     box.outerHTML = card(k.l, k.c, k.ownerView);
     if (open && open.open) document.querySelector('.pay[data-pay="' + listingId + '"] [data-pay-qr]').open = true;

@@ -224,39 +224,54 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   await tp.waitForSelector(`${box} form`);
   await tp.click(`${box} label:has-text("A neighbour helper brings it")`);
   await tp.waitForSelector(`${box} [data-fee-note]:not([hidden])`);
-  check((await tp.textContent(`${box} [data-fee-note]`)).includes("₹20 delivery fee is added to what you pay Demo Owner, so it's one payment"),
-    'Booking a helper for a paid item says the fee is added to the payment to the seller');
+  const note = await tp.textContent(`${box} [data-fee-note]`);
+  check(note.includes("added to the item price, and you pay Demo Owner both in one payment") && note.includes("Don't pay before the item arrives and Dumpy confirms Demo Owner has paid Dumpy the ₹20 fee")
+    && await tp.evaluate(() => document.querySelector('.delivery [data-fee-note]').classList.contains('pay-warn')),
+    'Booking a helper for a paid item warns in red: one payment, only after Dumpy confirms the seller paid the fee');
   sql(`select public.arrange_delivery('${DESK}', 'helper', (((now() at time zone 'Asia/Kolkata')::date + 1) + time '12:00') at time zone 'Asia/Kolkata', '')`, TAKER.id);
   await tp.reload(); await settle(tp);
-  await tp.waitForFunction(() => /₹270/.test((document.querySelector('.pay[data-pay] .pay__sum') || {}).textContent || ''));
-  check((await tp.textContent('.pay[data-pay] [data-pay-breakdown]')).includes('₹250 for the item + ₹20 Dumpy delivery fee. Demo Owner passes the fee on to Dumpy'),
-    'The taker\'s pay box shows one payment: ₹270 to Demo Owner, ₹250 item + ₹20 fee');
-  const deskLink = await tp.getAttribute('.pay[data-pay] [data-pay-link]', 'href');
-  check(deskLink.includes('am=270.00') && deskLink.startsWith('upi://pay?pa=') && !deskLink.includes('Q987654321'),
-    'The payment link pays the seller ₹270\n       ' + deskLink);
-  check((await tp.textContent(`${box} [data-fee-line]`)).includes("added to what you pay Demo Owner"), 'The delivery plan says the same');
-  await noSideScroll(tp, 'one payment'); await smallTargets(tp, 'one payment');
+  await tp.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  const lockT = await tp.textContent('.pay[data-pay]');
+  check(lockT.includes("Don't pay Demo Owner yet") && lockT.includes('₹270') && lockT.includes('Demo Owner pays Dumpy\'s ₹20 delivery fee first')
+    && (await tp.locator('.pay[data-pay] [data-pay-link], .pay[data-pay] [data-pay-app]').count()) === 0 && !(await tp.content()).includes('demo.owner@okaxis'),
+    'Before delivery the buyer sees a red "Don\'t pay yet" with the order of payments, no pay buttons and no seller UPI ID');
+  check((await tp.textContent(`${box} [data-fee-line]`)).includes("Don't pay before the item arrives"), 'The delivery plan repeats the warning');
+  await noSideScroll(tp, 'one payment locked'); await smallTargets(tp, 'one payment locked');
   await shot(tp, 'item-one-payment-light');
   const op = await personPage(OWNER);
   await op.goto(SITE + '/pages/item.html?id=' + DESK); await settle(op);
-  await op.waitForFunction(() => /₹270/.test((document.querySelector('[data-pay-status]') || {}).textContent || ''));
-  check((await op.textContent('[data-pay-status]')).includes('pays you ₹270 by UPI or cash (₹250 for the item + ₹20 Dumpy delivery fee, which you pass on to Dumpy'),
-    'The seller is told they get ₹270 and pass ₹20 on');
+  await op.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  check((await op.textContent('.pay[data-pay]')).includes("You can't be paid yet") && await op.isDisabled('[data-pay-toggle]'),
+    'The seller sees a red "You can\'t be paid yet", and Mark as paid is locked');
+  check((await op.textContent(`${box} [data-fee-line]`)).includes("You can't be paid until Dumpy confirms it"), 'The seller\'s delivery plan explains it too');
   const deskDid = q1(`select id from public.deliveries where listing_id = '${DESK}' and status = 'open'`);
   sql(`select public.claim_delivery('${deskDid}')`, HELPER.id);
   sql(`select public.mark_delivered('${deskDid}')`, HELPER.id);
   await op.reload(); await settle(op);
   await op.waitForSelector(`${box} [data-fee] [data-dact="feepaid"]`);
-  check((await op.textContent(`${box} [data-fee]`)).includes('Demo Taker pays you ₹20 for Dumpy\'s delivery fee with the item price. Please pass it on to Dumpy'),
-    'After delivery the seller is asked to pass the fee on, with I\'ve paid');
+  check((await op.textContent(`${box} [data-fee]`)).includes("Pay Dumpy first") && (await op.textContent(`${box} [data-fee]`)).includes("Demo Taker can't pay you until you pay Dumpy's ₹20 delivery fee and Dumpy confirms it"),
+    'After delivery the seller gets a red "Pay Dumpy first", with the pay steps and I\'ve paid');
   await shot(op, 'item-seller-passes-fee-light');
   await tp.reload(); await settle(tp);
-  await tp.waitForSelector(`${box} [data-fee]`);
-  check((await tp.textContent(`${box} [data-fee]`)).includes('Included in your payment to Demo Owner') && (await tp.locator(`${box} [data-fee] [data-dact="feepaid"]`).count()) === 0,
-    'The taker has nothing extra to pay Dumpy');
+  await tp.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  check((await tp.textContent('.pay[data-pay]')).includes("Waiting for Demo Owner to pay Dumpy's ₹20 delivery fee") && (await tp.textContent(`${box} [data-fee]`)).includes('Included in your payment to Demo Owner'),
+    'After delivery the buyer still waits, and is told why');
   await op.click(`${box} [data-dact="feepaid"]`);
-  await op.waitForFunction(() => /You marked this as paid/.test(document.querySelector('.delivery').textContent));
-  check(q1(`select fee_marked_paid_at is not null from public.deliveries where id = '${deskDid}'`) === 't', 'The seller marks the fee passed on');
+  await op.waitForFunction(() => /Waiting for Dumpy to confirm your ₹20 fee/.test(document.querySelector('.delivery').textContent));
+  check(q1(`select fee_marked_paid_at is not null from public.deliveries where id = '${deskDid}'`) === 't', 'The seller marks the fee paid and waits for Dumpy');
+  await tp.reload(); await settle(tp);
+  await tp.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  check((await tp.textContent('.pay[data-pay]')).includes("says they paid Dumpy's ₹20 fee. Waiting for Dumpy to confirm"), 'Until Dumpy confirms, the buyer still can\'t pay');
+  sql(`select public.platform_settle_delivery_fee('${deskDid}', 'confirm')`, BOSS.id);
+  await tp.reload(); await settle(tp);
+  await tp.waitForSelector('.pay[data-pay] [data-pay-ok]');
+  const deskLink = await tp.getAttribute('.pay[data-pay] [data-pay-link]', 'href');
+  check(deskLink.includes('pa=demo.owner@okaxis') && deskLink.includes('am=270.00') && (await tp.textContent('.pay[data-pay] [data-pay-ok]')).includes('Dumpy confirmed Demo Owner paid the ₹20 delivery fee'),
+    'Once Dumpy confirms, the buyer gets the pay buttons for ₹270 to Demo Owner\n       ' + deskLink);
+  await shot(tp, 'item-one-payment-confirmed-light');
+  await op.reload(); await settle(op);
+  await op.waitForSelector('[data-pay-toggle]:not([disabled])');
+  check(true, 'and the seller can mark the item paid');
   sql(`update public.profiles set upi_id = nullif('${ownerUpi}', '') where user_id = '${OWNER.id}'`);
 
   // Turn the fee back off so later test files start as before.

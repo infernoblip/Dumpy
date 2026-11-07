@@ -2023,3 +2023,18 @@ html:active-view-transition-type(back)::view-transition-old(root) { animation: v
 .pay__links-alt { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .pay__links-alt .btn { flex: 1 1 140px; }
 .pay__breakdown { margin-top: calc(var(--space-2) * -1); }
+
+/* Big red warning: the seller pays Dumpy's delivery fee first (js/pay.js warn) */
+.pay-warn {
+  border: 2px solid var(--danger);
+  background: var(--danger-soft);
+  color: var(--text);
+  border-radius: 14px;
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+.pay-warn__t { display: flex; gap: var(--space-2); align-items: center; font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; line-height: 1.2; color: var(--danger); }
+.pay-warn__t svg { flex: none; width: 26px; height: 26px; }
+.pay-warn ol { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; }
+.pay-ok { border-left: 4px solid var(--brand); padding-left: var(--space-2); }
