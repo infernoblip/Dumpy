@@ -41,6 +41,11 @@
       <p class="hint" style="margin:0 0 var(--space-3)">Check each name and flat before you approve. Only approved members can see items.</p>
       <ul class="list" id="pending"><li class="empty"><p>Loading…</p></li></ul>
     </section>
+    <section class="section" id="problems-section" aria-labelledby="problems-h" hidden>
+      <div class="section__head"><h2 id="problems-h">Delivery problems</h2><span class="status status--pending" id="problems-count" hidden></span></div>
+      <p class="small muted">When a buyer says a helper's delivery didn't arrive. Look at the photo, call everyone, then decide.</p>
+      <ul class="list" id="problems"></ul>
+    </section>
     <section class="section" aria-labelledby="reports-h">
       <div class="section__head"><h2 id="reports-h">Reported items</h2><span class="status status--pending" id="reports-count" hidden></span></div>
       <p class="hint" style="margin:0 0 var(--space-3)">Hide takes an item down for everyone except its owner. Dismiss keeps it up.</p>
@@ -90,6 +95,7 @@
   <script defer src="../js/render.js"></script>
   <script defer src="../js/societies.js"></script>
   <script defer src="../js/moderation.js"></script>
+  <script defer src="../js/delivery.js"></script>
   <script defer src="../js/app.js"></script>
 </body>
 </html>

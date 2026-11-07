@@ -291,7 +291,8 @@ select dumpy_dtests.ok((select count(*) from public.open_delivery_jobs('7e570000
 select public.claim_delivery((select id from dumpy_dtests.ids where name = 'd1'));
 
 -- --------------------------------------------------------- delivering
-select public.mark_delivered((select id from dumpy_dtests.ids where name = 'd1'));
+insert into storage.objects (bucket_id, name) select 'delivery-proofs', d.society_id || '/' || d.id || '/proof.webp' from public.deliveries d where d.id = (select id from dumpy_dtests.ids where name = 'd1');
+select public.mark_delivered((select id from dumpy_dtests.ids where name = 'd1'), (select d.society_id || '/' || d.id || '/proof.webp' from public.deliveries d where d.id = (select id from dumpy_dtests.ids where name = 'd1')));
 select dumpy_dtests.ok((select status from public.listings where id = '7e570000-0000-4000-8000-000000d70001') = 'done',
   'The helper marks it delivered and the item closes as done');
 select dumpy_dtests.ok((select status || coalesce(pickup_flat, '-') || coalesce(drop_phone, '-')

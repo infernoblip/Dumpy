@@ -36,6 +36,159 @@
       "&tn=" + encodeURIComponent(note);
   }
 
+  // Paying on a phone. Two things go wrong with a payment link (upi://pay with
+  // the amount filled in):
+  //   * the phone picks which app opens it, and on many phones that is
+  //     WhatsApp, which registers for UPI links too
+  //   * Google Pay treats a link that pays a personal UPI ID as risky and
+  //     refuses it with "bank limit reached", although paying the same person
+  //     by hand works
+  // So on phones each app button copies the UPI ID and opens the app itself.
+  // The person pastes the ID and types the amount, which the app sees as an
+  // ordinary payment. "Pay with link" keeps the filled-in link for apps and
+  // business UPI IDs that accept it.
+  //   Android  an intent naming the app's package (Chrome opens the app, or
+  //            its Play Store page if it is not installed)
+  //   iPhone   the app's own link scheme
+  var APPS = [
+    { name: "Google Pay", android: "com.google.android.apps.nbu.paisa.user", ios: "gpay://" },
+    { name: "PhonePe", android: "com.phonepe.app", ios: "phonepe://" },
+    { name: "Paytm", android: "net.one97.paytm", ios: "paytmmp://" }
+  ];
+  function phoneKind() {
+    var ua = navigator.userAgent || "";
+    if (/Android/i.test(ua)) return "android";
+    if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+    return null;
+  }
+  function openHref(app, kind) {
+    return kind === "android"
+      ? "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=" + app.android + ";end"
+      : app.ios;
+  }
+  function linkParam(href, key) {
+    var m = new RegExp("[?&]" + key + "=([^&]*)").exec(href);
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+  function copyRow(upi) {
+    return '<div class="pay__upi"><p><span class="small muted">UPI ID</span><br><span class="pay__id" translate="no">' + esc(upi) + "</span></p>" +
+      '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>";
+  }
+  function step(n, title, body) {
+    return '<li class="pay-step" data-pay-step="' + n + '"><span class="pay-step__n" aria-hidden="true">' + n + '</span><div class="pay-step__body">' +
+      '<p class="pay-step__t">' + title + "</p>" + (body || "") + "</div></li>";
+  }
+
+  // Where to paste a UPI ID in each app, shown after the person taps it.
+  var WHERE = {
+    "Google Pay": "In Google Pay, tap “Pay UPI ID or number”, then paste.",
+    "PhonePe": "In PhonePe, tap the option to pay a UPI ID, then paste.",
+    "Paytm": "In Paytm, tap the option to pay a UPI ID, then paste."
+  };
+  // One-tap links that open an app with the payment filled in. Only used for
+  // business UPI IDs: Google Pay refuses them for personal ones.
+  var ONE_TAP_IOS = { "Google Pay": "gpay://upi/pay", "PhonePe": "phonepe://pay", "Paytm": "paytmmp://upi/pay" };
+  function oneTapHref(app, href, kind) {
+    var query = href.slice(href.indexOf("?"));
+    return kind === "android" ? "intent://pay" + query + "#Intent;scheme=upi;package=" + app.android + ";end" : ONE_TAP_IOS[app.name] + query;
+  }
+
+  // One-tap payment links in several formats, for the person to try one after
+  // another. Google Pay checks payment links to personal UPI IDs and sometimes
+  // refuses them ("bank limit reached"); whether it does can depend on the link
+  // format, so the Google Pay formats come first:
+  //   tez://upi/pay       Google Pay's own scheme (Android and iPhone)
+  //   intent upi + package  the standard upi://pay link, sent only to Google Pay
+  //   intent tez + package  Google Pay's scheme, sent only to Google Pay
+  //   gpay://upi/pay      Google Pay's newer scheme
+  //   short tez link      only the UPI ID, name, amount and currency (no note)
+  // then PhonePe and Paytm in their own formats.
+  var GPAY = "com.google.android.apps.nbu.paisa.user";
+  function shortQuery(href) {
+    return "?" + ["pa", "pn", "am", "cu"].map(function (k) {
+      var m = new RegExp("[?&]" + k + "=([^&]*)").exec(href);
+      return m ? k + "=" + m[1] : "";
+    }).filter(Boolean).join("&");
+  }
+  function payLinks(href, kind) {
+    var q = href.slice(href.indexOf("?"));
+    var gp = kind === "android"
+      ? [["Google Pay", "tez://upi/pay" + q],
+         ["Google Pay link 2", "intent://pay" + q + "#Intent;scheme=upi;package=" + GPAY + ";end"],
+         ["Google Pay link 3", "intent://upi/pay" + q + "#Intent;scheme=tez;package=" + GPAY + ";end"],
+         ["Google Pay link 4", "gpay://upi/pay" + q],
+         ["Google Pay link 5", "tez://upi/pay" + shortQuery(href)]]
+      : [["Google Pay", "gpay://upi/pay" + q],
+         ["Google Pay link 2", "tez://upi/pay" + q],
+         ["Google Pay link 3", "gpay://upi/pay" + shortQuery(href)]];
+    return gp.concat(kind === "android"
+      ? [["PhonePe", "phonepe://pay" + q], ["Paytm", "paytmmp://pay" + q]]
+      : [["PhonePe", "phonepe://pay" + q], ["Paytm", "paytmmp://upi/pay" + q]]);
+  }
+  function linksBox(href, kind, price) {
+    var list = payLinks(href, kind);
+    return '<div class="pay__links" data-pay-links><p class="pay-step__t">Or pay in one tap</p>' +
+      '<p class="small muted">Opens the app with ' + esc(price) + ' filled in. If the app shows an error, go back and try the next link.</p>' +
+      '<a class="btn btn--outline btn--block" href="' + esc(list[0][1]) + '" data-pay-try="1">' + esc(list[0][0]) + " (one tap)</a>" +
+      '<div class="pay__links-alt">' + list.slice(1).map(function (x, i) {
+        return '<a class="btn btn--outline btn--sm" href="' + esc(x[1]) + '" data-pay-try="' + (i + 2) + '">' + esc(x[0]) + "</a>";
+      }).join("") + "</div></div>";
+  }
+
+  // How to pay, as a big amount and numbered steps. Used for item payments
+  // and the Dumpy fee.
+  //   o.href     the upi://pay link (UPI ID, name, amount, note)
+  //   o.price    "₹250"
+  //   o.payee    who is paid, for "to Demo Owner"
+  //   o.note     a reference to add as the payment note, or ""
+  //   o.last     [title, html] for a final step (for example "Tap I've paid")
+  //   o.oneTap   true for a business UPI ID: the app opens with everything filled in
+  //   o.breakdown  optional HTML under the amount, e.g. "₹250 item + ₹20 delivery fee"
+  function steps(o) {
+    var kind = phoneKind();
+    var href = o.href;
+    var upi = linkParam(href, "pa");
+    var qr = qrSvg(href);
+    var qrBox = qr ? '<figure class="pay__qrcode" role="img" aria-label="QR code to pay ' + esc(o.payee) + " " + esc(o.price) + '">' + qr + "</figure>" : "";
+    var noteText = o.note ? ' Add the note <strong translate="no">' + esc(o.note) + "</strong>." : "";
+    var n = 0;
+    var html = '<p class="pay__sum"><span class="pay__sum-amount">' + esc(o.price) + '</span><span class="pay__sum-to">to ' + esc(o.payee) + "</span></p>" +
+      (o.breakdown ? '<p class="small pay__breakdown" data-pay-breakdown>' + o.breakdown + "</p>" : "") +
+      '<ol class="pay-steps">';
+    if (kind && o.oneTap) {
+      html += step(++n, "Tap the app you pay with",
+        '<div class="pay__apps">' + APPS.map(function (a) {
+          return '<a class="btn btn--primary btn--lg" href="' + esc(oneTapHref(a, href, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-onetap>' + esc(a.name) + "</a>";
+        }).join("") + "</div>" +
+        '<p class="small muted">It opens with ' + esc(o.price) + " and everything else filled in.</p>");
+      html += step(++n, "Check it says " + esc(o.price) + ", then pay");
+    } else if (kind) {
+      html += step(++n, "Tap the app you pay with",
+        '<div class="pay__apps">' + APPS.map(function (a) {
+          return '<a class="btn btn--primary btn--lg" href="' + esc(openHref(a, kind)) + '" data-pay-app="' + esc(a.name) + '" data-pay-id="' + esc(upi) + '">' + esc(a.name) + "</a>";
+        }).join("") + "</div>" +
+        '<p class="small muted">We copy the UPI ID for you, then open the app.</p>' +
+        '<p class="small pay__apps-status" data-pay-status-line role="status" aria-live="polite"></p>');
+      html += step(++n, "Paste the UPI ID",
+        '<p class="small muted" data-pay-where>In the app, tap the option to pay a UPI ID, then paste.</p>' + copyRow(upi));
+      html += step(++n, "Pay <span class=\"pay__amount\">" + esc(o.price) + "</span>", noteText ? '<p class="small">' + noteText.trim() + "</p>" : "");
+    } else {
+      html += step(++n, "Scan this code with your phone",
+        '<p class="small muted">Use any UPI app: Google Pay, PhonePe, Paytm or your bank\'s app.</p>' + qrBox + copyRow(upi));
+      html += step(++n, "Pay <span class=\"pay__amount\">" + esc(o.price) + "</span>", noteText ? '<p class="small">' + noteText.trim() + "</p>" : "");
+    }
+    if (o.last) html += step(++n, o.last[0], o.last[1]);
+    html += "</ol>";
+    if (kind && !o.oneTap) html += linksBox(href, kind, o.price);
+    html += '<details class="pay__more" data-pay-qr><summary>Other ways to pay</summary><div class="stack-sm">' +
+      (kind && o.oneTap ? '<p class="small muted">Pay the UPI ID yourself in any UPI app:</p>' + copyRow(upi) : "") +
+      '<a class="btn btn--outline btn--block" href="' + esc(href) + '" data-pay-link>Open payment link</a>' +
+      (o.oneTap ? "" : '<p class="small muted">Fills in the amount for you. Some apps, like Google Pay, refuse these links for personal UPI IDs.</p>') +
+      (kind && qrBox ? qrBox + '<p class="small muted">Or scan this code with another phone.</p>' : "") +
+      "<p class=\"small muted\">You can also pay " + esc(o.price) + " in cash. Dumpy never holds money.</p></div></details>";
+    return html;
+  }
+
   // A QR code of the link as inline SVG, drawn by the pinned qrcode-generator
   // library. Returns "" if the library did not load.
   function qrSvg(text) {
@@ -81,20 +234,83 @@
   //   l          the listing (price_inr, status, title, paid_at)
   //   c          get_contact's row: the other person (null if it didn't load)
   //   ownerView  true for the owner, false for the taker
+  // The pay boxes on the page, so a helper delivery's fee can be added later.
+  var CARDS = {};
+
+  var ICON_ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>';
+  // A big red warning box. body is HTML.
+  function warn(title, body) {
+    return '<div class="pay-warn" role="alert" data-pay-warn><p class="pay-warn__t">' + ICON_ALERT + "<span>" + title + "</span></p>" + body + "</div>";
+  }
+  // The order of payments when the seller collects Dumpy's delivery fee.
+  //   seller  the seller's name, or "You" when the seller is reading
+  //   payer   who pays the seller at the end: "you" or the buyer's name
+  function order(seller, fee, total, payer) {
+    var you = seller === "You";
+    return "<ol class=\"small\"><li>A helper delivers the item.</li><li><strong>" + seller + (you ? " pay" : " pays") + " Dumpy's " + fee +
+      " delivery fee first</strong>, to Dumpy's UPI ID.</li><li><strong>Dumpy checks the " + fee + " arrived</strong> and confirms it.</li>" +
+      "<li>Only then " + (payer === "you" ? "do you pay " + seller : "does " + payer + " pay you") + " " + total +
+      " (the item price + the " + fee + " back), in one payment.</li></ol>";
+  }
+
   function card(l, c, ownerView) {
     if (!isPaid(l) || !matched(l)) return "";
-    var price = rupees(l.price_inr);
+    CARDS[l.id] = { l: l, c: c, ownerView: ownerView };
+    // When a helper delivers a paid item, the taker pays the seller the price
+    // and Dumpy's delivery fee in one payment; the seller passes the fee on
+    // (js/delivery.js calls withFee).
+    var fee = l.delivery_fee_extra || 0;
+    var total = l.price_inr + fee;
+    var price = rupees(total);
+    var split = fee ? rupees(l.price_inr) + " for the item + " + rupees(fee) + " Dumpy delivery fee" : "";
+    // The seller pays Dumpy's fee first; until Dumpy confirms it, nobody pays
+    // the seller (the database also hides their UPI ID and refuses Mark as paid).
+    var locked = fee > 0 && l.delivery_fee_state !== "confirmed";
+    // Until the delivery box has said whether there is a fee, don't show a
+    // missing UPI ID as "pay in cash": it may be hidden for that reason.
+    var waiting = !ownerView && !l.delivery_fee_known && !(c && c.upi_id) && !!Dumpy.delivery && !l.paid_at;
     var paid = !!l.paid_at;
     var other = c ? c.display_name : (ownerView ? "the taker" : "the owner");
     var hid = "pay-h-" + esc(l.id);
     var head = '<div class="pay" data-pay="' + esc(l.id) + '" role="group" aria-labelledby="' + hid + '">' +
       '<p class="pay__title" id="' + hid + '">Payment · ' + price + "</p>";
 
+    var otherName = esc(other);
+    if (l.delivery_hold && !paid) {
+      var holdText = l.delivery_hold === "not_delivered"
+        ? "Your society admin decided this item was not delivered, so there is nothing to pay."
+        : "The buyer reported the item did not arrive. Your society admin will decide. Nobody pays until then.";
+      return head.replace(">Payment · " + price + "<", ">Payment<") +
+        warn(l.delivery_hold === "not_delivered" ? "Nothing to pay" : "Payment on hold", '<p class="small"><strong>' + holdText + "</strong></p>") +
+        "</div>";
+    }
+    if (locked && !paid) {
+      var fr = rupees(fee);
+      if (ownerView) {
+        var now = { upcoming: "After the helper delivers, pay Dumpy's " + fr + " delivery fee in the Delivery box below.",
+                    due: "Pay Dumpy's " + fr + " delivery fee now, in the Delivery box below.",
+                    marked: "You said you paid Dumpy's " + fr + " fee. Waiting for Dumpy to confirm it." }[l.delivery_fee_state] || "";
+        return head + warn("You can't be paid yet", '<p class="small"><strong>' + now + "</strong></p>" + order("You", fr, price, otherName) +
+            '<p class="small">Until then ' + otherName + " can't see your UPI ID, and you can't mark this paid.</p>") +
+          '<label class="switch pay__switch"><span class="switch__text"><strong>Mark as paid</strong><br><span class="small muted" data-pay-status>Locked until Dumpy confirms your fee.</span></span>' +
+          '<input type="checkbox" data-pay-toggle disabled aria-describedby="' + hid + '"></label></div>';
+      }
+      var why = { upcoming: "The item hasn't been delivered yet.",
+                  due: "The item has arrived. Waiting for " + otherName + " to pay Dumpy's " + fr + " delivery fee.",
+                  marked: otherName + " says they paid Dumpy's " + fr + " fee. Waiting for Dumpy to confirm it." }[l.delivery_fee_state] || "";
+      return head.replace(">Payment · " + price + "<", ">Payment<") +
+        '<p class="pay__sum"><span class="pay__sum-amount">' + price + '</span><span class="pay__sum-to">to ' + otherName + " later</span></p>" +
+        '<p class="small pay__breakdown">' + esc(split) + ".</p>" +
+        warn("Don't pay " + otherName + " yet", '<p class="small"><strong>' + why + "</strong></p>" + order(otherName, fr, price, "you") +
+          '<p class="small">The pay buttons appear here once Dumpy confirms. Dumpy never holds money.</p>') + "</div>";
+    }
+
     if (ownerView) {
       var myUpi = Dumpy.state && Dumpy.state.profile && Dumpy.state.profile.upi_id;
       return head +
         '<label class="switch pay__switch"><span class="switch__text"><strong>Mark as paid</strong><br>' +
-        '<span class="small muted" data-pay-status>' + (paid ? "Paid. Thanks for using Dumpy." : esc(other) + " pays you " + price + " by UPI or cash.") + "</span></span>" +
+        '<span class="small muted" data-pay-status>' + (paid ? "Paid. Thanks for using Dumpy." : esc(other) + " pays you " + price + " by UPI or cash" +
+          (fee ? " (" + split + ", which you pass on to Dumpy after the delivery)" : "") + ".") + "</span></span>" +
         '<input type="checkbox" data-pay-toggle' + (paid ? " checked" : "") + ' aria-describedby="' + hid + '"></label>' +
         (paid || myUpi ? "" : '<p class="small muted">Add your UPI ID in <a href="profile.html">Profile</a> so ' + esc(other) + " can pay you by UPI.</p>") +
         "</div>";
@@ -105,37 +321,19 @@
     }
 
     var upi = c && c.upi_id && UPI_RE.test(c.upi_id) ? c.upi_id : null;
+    if (!upi && waiting) {
+      return head + '<p class="small muted">Checking how to pay…</p></div>';
+    }
     if (!upi) {
-      return head + '<p class="small">' + esc(other) + " has not added a UPI ID. Pay " + price + " in cash when you collect it.</p></div>";
+      return head + '<p class="small">' + esc(other) + " has not added a UPI ID. Pay " + price + " in cash when you collect it." +
+        (fee ? " That's " + split + "." : "") + "</p></div>";
     }
 
-    var href = link(upi, c.display_name, l.price_inr, l.title);
-    var qr = qrSvg(href);
-    return head +
-      '<a class="btn btn--primary btn--lg btn--block" href="' + esc(href) + '" data-pay-link>Pay ' + price + "</a>" +
-      '<div class="pay__upi"><p><span class="small muted">UPI ID</span><br><span class="pay__id" translate="no">' + esc(upi) + "</span></p>" +
-      '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>" +
-      (qr ? '<details class="pay__qr" data-pay-qr><summary>Show QR code</summary>' +
-        '<figure role="img" aria-label="QR code to pay ' + esc(c.display_name) + " " + price + ' by UPI">' + qr + "</figure>" +
-        '<p class="small muted">Scan with any UPI app on another phone.</p></details>' : "") +
-      '<p class="small muted">Pay opens your UPI app with ' + price + " filled in. If nothing opens (on iPhone, for example), copy the UPI ID and pay in any UPI app, or pay in cash. Dumpy never holds money.</p>" +
-      "</div>";
-  }
-
-  // Open the QR code by default on larger screens, where there is room and the
-  // person is likely to scan it with their phone. Each code is opened once, so
-  // closing it by hand sticks.
-  var wide = window.matchMedia ? window.matchMedia("(min-width: 600px)") : { matches: false };
-  function openQrOnWide() {
-    if (!wide.matches) return;
-    document.querySelectorAll("[data-pay-qr]:not([data-seen])").forEach(function (d) {
-      d.dataset.seen = "1";
-      d.open = true;
-    });
-  }
-  if (window.MutationObserver) {
-    new MutationObserver(function () { openQrOnWide(); })
-      .observe(document.documentElement, { childList: true, subtree: true });
+    var href = link(upi, c.display_name, total, l.title + (fee ? " + delivery" : ""));
+    head = head.replace(">Payment · " + price + "<", ">Payment<");
+    return head + steps({ href: href, price: price, payee: c.display_name,
+      breakdown: fee ? esc(split) + '.</p><p class="small pay-ok" data-pay-ok><strong>Dumpy confirmed ' + esc(c.display_name) +
+        " paid the " + rupees(fee) + " delivery fee.</strong> You can pay now: the " + rupees(fee) + " goes back to " + esc(c.display_name) + "." : "" }) + "</div>";
   }
 
   async function copy(text) {
@@ -155,6 +353,25 @@
     t.remove();
     if (!ok) throw new Error("copy failed");
   }
+
+  // App buttons: copy the UPI ID first, then open the app.
+  document.addEventListener("click", async function (e) {
+    var a = e.target.closest && e.target.closest("[data-pay-app]");
+    if (!a || a.hasAttribute("data-pay-onetap")) return;
+    e.preventDefault();
+    var box = a.closest(".pay");
+    var line = box.querySelector("[data-pay-status-line]");
+    var where = box.querySelector("[data-pay-where]");
+    var said = "";
+    try { await copy(a.dataset.payId); said = "✓ UPI ID copied. Opening " + a.dataset.payApp + "…"; }
+    catch (err) { said = "Opening " + a.dataset.payApp + ". Copy the UPI ID below if it isn't filled in."; }
+    if (line) line.textContent = said;
+    if (where) where.textContent = WHERE[a.dataset.payApp] || where.textContent;
+    var first = box.querySelector('[data-pay-step="1"]');
+    if (first) first.classList.add("is-done");
+    var go = a.getAttribute("href");
+    setTimeout(function () { window.location.href = go; }, 400);
+  });
 
   document.addEventListener("click", async function (e) {
     var b = e.target.closest && e.target.closest("[data-pay-copy]");
@@ -186,5 +403,28 @@
     input.disabled = false;
   });
 
-  Dumpy.pay = { link: link, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
+  // Add (or remove, with 0) Dumpy's delivery fee to an item's pay box: the
+  // taker then pays the seller both in one payment.
+  //   fee    the fee the seller collects (0 if none)
+  //   state  the fee's status: upcoming, due, marked, confirmed or waived
+  //   hold   "problem" (the buyer reported it did not arrive) or
+  //          "not_delivered" (the society admin decided so): don't pay
+  function withFee(listingId, fee, state, hold) {
+    var k = CARDS[listingId];
+    var box = document.querySelector('.pay[data-pay="' + listingId + '"]');
+    fee = fee > 0 ? fee : 0;
+    state = fee ? state || "" : "";
+    hold = hold || "";
+    if (!k || !box) return;
+    if (k.l.delivery_fee_known && (k.l.delivery_fee_extra || 0) === fee && (k.l.delivery_fee_state || "") === state && (k.l.delivery_hold || "") === hold) return;
+    k.l.delivery_fee_known = true;
+    k.l.delivery_hold = hold;
+    k.l.delivery_fee_extra = fee;
+    k.l.delivery_fee_state = state;
+    var open = box.querySelector("[data-pay-qr]");
+    box.outerHTML = card(k.l, k.c, k.ownerView);
+    if (open && open.open) document.querySelector('.pay[data-pay="' + listingId + '"] [data-pay-qr]').open = true;
+  }
+
+  Dumpy.pay = { link: link, steps: steps, payLinks: payLinks, withFee: withFee, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
 })();

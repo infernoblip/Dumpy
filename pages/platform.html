@@ -47,8 +47,17 @@
           </div>
           <div class="field">
             <label class="label" for="fee-upi">Your UPI ID</label>
-            <input class="input" id="fee-upi" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="128" placeholder="name@bank" aria-describedby="fee-upi-hint">
-            <span class="hint" id="fee-upi-hint">Fees are paid straight to this ID. Only takers who owe a fee see it.</span>
+            <input class="input" id="fee-upi" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="600" placeholder="name@bank" aria-describedby="fee-upi-hint">
+            <span class="hint" id="fee-upi-hint">Fees are paid straight to this ID. Only takers who owe a fee see it. You can also paste the link from your business QR code (it starts with upi://), and Dumpy fills in the details.</span>
+          </div>
+          <label class="switch">
+            <span class="switch__text"><strong>This is a business UPI ID</strong><br><span class="small muted">From PhonePe Business or another merchant app. Takers then pay in one tap, with ₹ and the reference filled in. Leave off for a personal UPI ID: Google Pay blocks one-tap links to those.</span></span>
+            <input type="checkbox" id="fee-business" role="switch">
+          </label>
+          <div class="field" id="fee-mc-field" hidden>
+            <label class="label" for="fee-mc">Merchant code <span class="label__opt">(optional)</span></label>
+            <input class="input" id="fee-mc" inputmode="numeric" maxlength="4" placeholder="5399" aria-describedby="fee-mc-hint">
+            <span class="hint" id="fee-mc-hint">The 4 digits after mc= in your business QR link. Pasting the link above fills it in.</span>
           </div>
           <div class="field">
             <label class="label" for="fee-name">Name shown in UPI apps</label>

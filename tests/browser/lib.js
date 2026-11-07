@@ -17,7 +17,10 @@ const PG_PORT = process.env.PG_PORT || '54339';  // set by run.sh
 const SITE = 'http://localhost:8000';
 const SUPA = 'https://sfezmqsdzwrjdcqpyhln.supabase.co';
 const SECRET = 'local-test-secret-local-test-secret-0123'; // only for the throwaway local PostgREST
-const BUCKET = { id: 'listing-photos', limit: 2 * 1024 * 1024, types: ['image/jpeg', 'image/png', 'image/webp'] };
+const BUCKETS = [
+  { id: 'listing-photos', limit: 2 * 1024 * 1024, types: ['image/jpeg', 'image/png', 'image/webp'] },
+  { id: 'delivery-proofs', limit: 2 * 1024 * 1024, types: ['image/jpeg', 'image/png', 'image/webp'] }
+];
 const STORE = path.join(WORK || '/tmp', 'storage');
 const UMD = WORK ? fs.readFileSync(path.join(WORK, 'package/dist/umd/supabase.js')) : null;
 
@@ -120,50 +123,70 @@ async function wire(context) {
     if (u.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
 
     // ---- Storage ----
-    const OBJ = '/storage/v1/object/' + BUCKET.id + '/';
-    if (u.pathname.startsWith(OBJ) && req.method() === 'POST') {
-      const name = decodeURIComponent(u.pathname.slice(OBJ.length));
-      if (faults.dropUploads > 0) { faults.dropUploads--; storageLog.push({ name, who, ok: false, why: 'dropped' }); return route.abort('internetdisconnected'); }
-      if (!who) return json(400, { statusCode: '403', error: 'Unauthorized', message: 'Invalid JWT' });
-      const form = await new Response(req.postDataBuffer(), { headers: { 'content-type': req.headers()['content-type'] } }).formData();
-      const file = [...form.values()].find((v) => typeof v === 'object');
-      const bytes = Buffer.from(await file.arrayBuffer());
-      const type = file.type;
-      if (bytes.length > BUCKET.limit) { storageLog.push({ name, who, ok: false, why: 'too big' }); return json(413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }); }
-      if (!BUCKET.types.includes(type)) { storageLog.push({ name, who, ok: false, why: 'type ' + type }); return json(415, { statusCode: '415', error: 'invalid_mime_type', message: `mime type ${type} is not supported` }); }
-      const r = sqlTry(`insert into storage.objects (bucket_id, name, owner_id, metadata) values (${lit(BUCKET.id)}, ${lit(name)}, ${lit(who)}, ${lit(JSON.stringify({ size: bytes.length, mimetype: type }))})`, who);
-      if (r.error) {
-        storageLog.push({ name, who, ok: false, why: /row-level security/.test(r.error) ? 'rls' : r.error });
-        return json(400, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' });
+    for (const BUCKET of BUCKETS) {
+      const OBJ = '/storage/v1/object/' + BUCKET.id + '/';
+      if (u.pathname.startsWith(OBJ) && req.method() === 'POST') {
+        const name = decodeURIComponent(u.pathname.slice(OBJ.length));
+        if (faults.dropUploads > 0) { faults.dropUploads--; storageLog.push({ name, who, ok: false, why: 'dropped' }); return route.abort('internetdisconnected'); }
+        if (!who) return json(400, { statusCode: '403', error: 'Unauthorized', message: 'Invalid JWT' });
+        const form = await new Response(req.postDataBuffer(), { headers: { 'content-type': req.headers()['content-type'] } }).formData();
+        const file = [...form.values()].find((v) => typeof v === 'object');
+        const bytes = Buffer.from(await file.arrayBuffer());
+        const type = file.type;
+        if (bytes.length > BUCKET.limit) { storageLog.push({ name, who, ok: false, why: 'too big' }); return json(413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' }); }
+        if (!BUCKET.types.includes(type)) { storageLog.push({ name, who, ok: false, why: 'type ' + type }); return json(415, { statusCode: '415', error: 'invalid_mime_type', message: `mime type ${type} is not supported` }); }
+        const r = sqlTry(`insert into storage.objects (bucket_id, name, owner_id, metadata) values (${lit(BUCKET.id)}, ${lit(name)}, ${lit(who)}, ${lit(JSON.stringify({ size: bytes.length, mimetype: type }))})`, who);
+        if (r.error) {
+          storageLog.push({ name, who, ok: false, why: /row-level security/.test(r.error) ? 'rls' : r.error });
+          return json(400, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' });
+        }
+        fs.mkdirSync(path.dirname(path.join(STORE, name)), { recursive: true });
+        fs.writeFileSync(path.join(STORE, name), bytes);
+        storageLog.push({ name, who, ok: true, size: bytes.length, type });
+        return json(200, { Key: BUCKET.id + '/' + name, Id: crypto.randomUUID() });
       }
-      fs.mkdirSync(path.dirname(path.join(STORE, name)), { recursive: true });
-      fs.writeFileSync(path.join(STORE, name), bytes);
-      storageLog.push({ name, who, ok: true, size: bytes.length, type });
-      return json(200, { Key: BUCKET.id + '/' + name, Id: crypto.randomUUID() });
-    }
-    if (u.pathname === '/storage/v1/object/' + BUCKET.id && req.method() === 'DELETE') {
-      const { prefixes } = req.postDataJSON();
-      const out = sql(`with d as (delete from storage.objects where bucket_id = ${lit(BUCKET.id)} and name = any(${lit('{' + prefixes.map((p) => '"' + p + '"').join(',') + '}')}::text[]) returning name) select coalesce(jsonb_agg(name), '[]') from d`, who);
-      const gone = JSON.parse(out.split('\n').filter(Boolean).pop() || '[]');
-      gone.forEach((n) => fs.rmSync(path.join(STORE, n), { force: true }));
-      return json(200, gone.map((name) => ({ name, bucket_id: BUCKET.id })));
-    }
-    if (u.pathname === '/storage/v1/object/sign/' + BUCKET.id && req.method() === 'POST') {
-      const { paths } = req.postDataJSON();
-      return json(200, paths.map((p) => ({ path: p, error: null, signedURL: '/object/sign/' + BUCKET.id + '/' + p + '?token=t' })));
-    }
-    if (u.pathname.startsWith('/storage/v1/object/sign/' + BUCKET.id + '/')) {
-      const name = decodeURIComponent(u.pathname.slice(('/storage/v1/object/sign/' + BUCKET.id + '/').length));
-      const stored = path.join(STORE, name);
-      if (fs.existsSync(stored)) {
-        const type = name.endsWith('.webp') ? 'image/webp' : name.endsWith('.png') ? 'image/png' : 'image/jpeg';
-        return route.fulfill({ status: 200, headers: cors, contentType: type, body: fs.readFileSync(stored) });
+      if (u.pathname === '/storage/v1/object/' + BUCKET.id && req.method() === 'DELETE') {
+        const { prefixes } = req.postDataJSON();
+        const out = sql(`with d as (delete from storage.objects where bucket_id = ${lit(BUCKET.id)} and name = any(${lit('{' + prefixes.map((p) => '"' + p + '"').join(',') + '}')}::text[]) returning name) select coalesce(jsonb_agg(name), '[]') from d`, who);
+        const gone = JSON.parse(out.split('\n').filter(Boolean).pop() || '[]');
+        gone.forEach((n) => fs.rmSync(path.join(STORE, n), { force: true }));
+        return json(200, gone.map((name) => ({ name, bucket_id: BUCKET.id })));
       }
-      return route.fulfill({ status: 200, headers: cors, contentType: 'image/svg+xml', body: fs.readFileSync(path.join(S, 'photos', path.basename(name))) });
+      if (u.pathname === '/storage/v1/object/sign/' + BUCKET.id && req.method() === 'POST') {
+        const { paths } = req.postDataJSON();
+        return json(200, paths.map((p) => ({ path: p, error: null, signedURL: '/object/sign/' + BUCKET.id + '/' + p + '?token=t' })));
+      }
+      if (u.pathname.startsWith('/storage/v1/object/sign/' + BUCKET.id + '/')) {
+        const name = decodeURIComponent(u.pathname.slice(('/storage/v1/object/sign/' + BUCKET.id + '/').length));
+        const stored = path.join(STORE, name);
+        if (fs.existsSync(stored)) {
+          const type = name.endsWith('.webp') ? 'image/webp' : name.endsWith('.png') ? 'image/png' : 'image/jpeg';
+          return route.fulfill({ status: 200, headers: cors, contentType: type, body: fs.readFileSync(stored) });
+        }
+        const sample = path.join(S, 'photos', path.basename(name));
+        if (!fs.existsSync(sample)) return route.fulfill({ status: 404, headers: cors, body: '' });
+        return route.fulfill({ status: 200, headers: cors, contentType: 'image/svg+xml', body: fs.readFileSync(sample) });
+      }
     }
     console.log('unhandled', req.method(), u.pathname);
     return route.fulfill({ status: 404, headers: cors, body: '' });
   });
+}
+
+// A photo for file inputs: drawn in the page (the item at a door marked
+// with a flat number, and a hand), returned as a PNG file.
+async function doorPhoto(page, label) {
+  const data = await page.evaluate((label) => {
+    const c = document.createElement('canvas'); c.width = 640; c.height = 480;
+    const g = c.getContext('2d');
+    g.fillStyle = '#8a5a3b'; g.fillRect(0, 0, 640, 480);              // door
+    g.fillStyle = '#d9c9a3'; g.fillRect(250, 60, 140, 60);             // number plate
+    g.fillStyle = '#222'; g.font = 'bold 40px sans-serif'; g.fillText(label || 'A-101', 262, 105);
+    g.fillStyle = '#4f7a5a'; g.fillRect(180, 250, 280, 180);           // the item
+    g.fillStyle = '#e0b48f'; g.beginPath(); g.ellipse(470, 330, 60, 35, 0, 0, Math.PI * 2); g.fill(); // hand
+    return c.toDataURL('image/png').split(',')[1];
+  }, label);
+  return { name: 'door.png', mimeType: 'image/png', buffer: Buffer.from(data, 'base64') };
 }
 
 function magicLink(u) {
@@ -210,5 +233,5 @@ const PHONE = { viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, isM
 module.exports = {
   S, WORK, SITE, SUPA, USERS, SOCIETY, PHONE, STORE,
   jwt, decode, sql, sqlTry, check, failed, wire, magicLink, settle, noSideScroll, smallTargets, shooter,
-  otpCalls, storageLog, faults, extraUsers,
+  otpCalls, storageLog, faults, extraUsers, doorPhoto,
 };

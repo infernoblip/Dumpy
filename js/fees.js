@@ -82,15 +82,35 @@
     $("#fee-amount").value = s.delivery_fee_inr || 0;
     $("#fee-upi").value = s.fee_upi_id || "";
     $("#fee-name").value = s.fee_payee_name || "Dumpy";
+    $("#fee-business").checked = !!s.fee_upi_business;
+    $("#fee-mc").value = s.fee_merchant_code || "";
+    function showMc() { $("#fee-mc-field").hidden = !$("#fee-business").checked; }
+    showMc();
+    $("#fee-business").addEventListener("change", showMc);
+
+    // A pasted QR link (upi://pay?pa=...&pn=...&mc=...) fills in the fields.
+    // A merchant code in it means a business UPI ID.
+    $("#fee-upi").addEventListener("input", function () {
+      var v = this.value.trim();
+      if (!/^upi:\/\/pay\?/i.test(v)) return;
+      var q = new URLSearchParams(v.slice(v.indexOf("?") + 1));
+      if (q.get("pa")) this.value = q.get("pa");
+      if (q.get("pn")) $("#fee-name").value = q.get("pn").slice(0, 50);
+      if (q.get("mc")) { $("#fee-business").checked = true; $("#fee-mc").value = q.get("mc").slice(0, 4); }
+      showMc();
+    });
 
     form.addEventListener("input", function () { err.hidden = true; saved.hidden = true; });
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
       var fee = $("#fee-amount").value.trim() === "" ? 0 : Number($("#fee-amount").value);
       var upi = $("#fee-upi").value.trim();
+      var business = $("#fee-business").checked;
+      var mc = $("#fee-mc").value.trim();
       var problem = !Number.isInteger(fee) || fee < 0 || fee > 500 ? ["#fee-amount", "The fee is a whole number of rupees from 0 to 500."]
         : upi && !UPI_RE.test(upi) ? ["#fee-upi", "That does not look like a UPI ID. It looks like name@okaxis."]
-        : fee > 0 && !upi ? ["#fee-upi", "Add the UPI ID the fee is paid to."] : null;
+        : fee > 0 && !upi ? ["#fee-upi", "Add the UPI ID the fee is paid to."]
+        : business && mc && !/^[0-9]{4}$/.test(mc) ? ["#fee-mc", "The merchant code is 4 digits, like 5399."] : null;
       if (problem) {
         err.querySelector("span").textContent = problem[1];
         err.hidden = false;
@@ -100,7 +120,7 @@
       var btn = form.querySelector("button[type=submit]");
       R.setBusy(btn, true, "Saving…");
       try {
-        await rpc("platform_set_fee_settings", { p_fee: fee, p_upi_id: upi, p_payee_name: $("#fee-name").value.trim() });
+        await rpc("platform_set_fee_settings", { p_fee: fee, p_upi_id: upi, p_payee_name: $("#fee-name").value.trim(), p_business: business, p_merchant_code: business ? mc : "" });
         saved.querySelector("span").textContent = fee > 0 ? "Saved. New helper deliveries carry a " + rupees(fee) + " fee." : "Saved. The delivery fee is off.";
         saved.hidden = false;
       } catch (ex) {

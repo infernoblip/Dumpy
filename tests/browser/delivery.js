@@ -80,8 +80,8 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   await t.click(`${box} button[type=submit]`);
   await t.waitForSelector(`${box} .delivery__plan`);
   const plan = await t.textContent(box);
-  check(plan.includes('Needs a helper') && plan.includes('A neighbour helper brings it') && plan.includes('Tomorrow, 6–8 pm') && plan.includes('₹30 cash'),
-    'The plan shows Needs a helper, the slot and the tip');
+  check(plan.includes('Needs a helper') && plan.includes('A neighbour helper brings it') && /Tomorrow, \w{3},? \d{1,2} \w{3}, 6–8 pm/.test(plan) && plan.includes('₹30 cash'),
+    'The plan shows Needs a helper, the slot with its date, and the tip');
   const row = q1(`select mode || '|' || status || '|' || tip_note || '|' || to_char(slot_start at time zone 'Asia/Kolkata', 'HH24:MI') || '|' || ((slot_start at time zone 'Asia/Kolkata')::date - (now() at time zone 'Asia/Kolkata')::date)
                   from public.deliveries where listing_id = '${DESK}'`);
   check(row === 'helper|open|₹30 cash|18:00|1', `The database holds a helper delivery, open, tomorrow 18:00 Indian time (${row})`);
@@ -94,7 +94,7 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   await o.click(`[data-listing="${DESK}"] ${box} label:has-text("4–6 pm")`);
   await o.click(`[data-listing="${DESK}"] ${box} button[type=submit]`);
   await o.waitForSelector(`[data-listing="${DESK}"] ${box} .delivery__plan`);
-  check((await o.textContent(`[data-listing="${DESK}"] ${box}`)).includes('Tomorrow, 4–6 pm')
+  check(/Tomorrow, \w{3},? \d{1,2} \w{3}, 4–6 pm/.test(await o.textContent(`[data-listing="${DESK}"] ${box}`))
     && q1(`select count(*) from public.deliveries where listing_id = '${DESK}'`) === '1',
     'The owner changes the time; it is still one delivery');
 
@@ -151,8 +151,14 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   await noSideScroll(t, 'item helper found'); await smallTargets(t, 'item helper found');
   await shot(t, 'item-helper-found-light');
 
-  // 7. The helper marks it delivered; the item closes as done.
+  // 7. The helper marks it delivered with a photo; the item closes as done.
   await h.click('#my-jobs [data-jact=delivered]');
+  await h.waitForSelector('#my-jobs [data-proof]');
+  await h.setInputFiles('#my-jobs [data-proof-file]', await L.doorPhoto(h, 'C-303'));
+  await h.click('#my-jobs [data-proof] label.choice:has-text("The item")');
+  await h.click('#my-jobs [data-proof] label.choice:has-text("flat door")');
+  await h.click('#my-jobs [data-proof] label.choice:has-text("My hand")');
+  await h.click('#my-jobs [data-proof] button[type=submit]');
   await h.waitForFunction(() => !document.querySelector('#my-jobs [data-jact=delivered]') && document.querySelector('#my-jobs').textContent.includes('Delivered'));
   check(q1(`select l.status || '|' || d.status from public.listings l join public.deliveries d on d.listing_id = l.id where l.id = '${DESK}'`) === 'done|delivered',
     'Mark delivered closes the delivery and the item becomes done');

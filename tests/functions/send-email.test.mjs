@@ -41,12 +41,19 @@ const env = {
 const post = (body) => new Request("https://x/send-email", { method: "POST", body: JSON.stringify(body) });
 
 await test("each kind has a subject and exactly one link, to the item", async () => {
-  for (const kind of ["request_new", "request_accepted", "request_declined", "delivery_claimed", "delivered"]) {
+  for (const kind of ["request_new", "request_accepted", "request_declined", "delivery_claimed", "delivered", "delivery_problem_resolved"]) {
     const m = buildEmail({ ...row, kind }, "https://site.example/");
     assert.ok(m.subject.length > 5, kind);
     const links = m.text.match(/https?:\/\/\S+/g);
     assert.deepEqual(links, ["https://site.example/pages/item.html?id=" + LISTING], kind);
   }
+});
+
+await test("delivery problem email points the helper to Jobs and admins to the Admin page", async () => {
+  const m = buildEmail({ ...row, kind: "delivery_problem" }, "https://site.example/");
+  assert.equal(m.subject, "Problem with the delivery of Test chair");
+  assert.match(m.text, /Test One says they did not receive Test chair/);
+  assert.deepEqual(m.text.match(/https?:\/\/\S+/g), ["https://site.example/pages/jobs.html", "https://site.example/pages/admin.html"]);
 });
 
 await test("new-request email names the requester and quotes the message", async () => {

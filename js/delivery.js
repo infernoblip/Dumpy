@@ -51,6 +51,17 @@
     var day = Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(t[0], t[1] - 1, t[2])) / 864e5);
     return { day: day, hour: d.getUTCHours(), date: d };
   }
+  // "Tomorrow, Sat 8 Nov, 12–2 pm": always with the date.
+  function slotDateText(iso) {
+    var s = slotParts(iso);
+    var date = new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(s.date);
+    var rel = s.day === 0 ? "Today, " : s.day === 1 ? "Tomorrow, " : s.day === -1 ? "Yesterday, " : "";
+    return rel + date + ", " + windowText(s.hour);
+  }
+  // "10:32 am, Sat 8 Nov" in Indian time.
+  function momentText(iso) {
+    return new Intl.DateTimeFormat("en-IN", { timeZone: TZ, hour: "numeric", minute: "2-digit", weekday: "short", day: "numeric", month: "short" }).format(new Date(iso));
+  }
   // "Today, 6–8 pm", "Tomorrow, 10 am–12 pm", "Sat 25 Oct, 2–4 pm"
   function slotText(iso) {
     var s = slotParts(iso);
@@ -86,6 +97,7 @@
   }
 
   /* ---------- Data ---------- */
+  var PROOFS = "delivery-proofs";
   var feeAsk = null;
   async function rpc(name, args) { return check(await db.rpc(name, args)); }
   var api = {
@@ -96,7 +108,25 @@
     cancel: function (id) { return rpc("cancel_delivery", { p_delivery_id: id }); },
     claim: function (id) { return rpc("claim_delivery", { p_delivery_id: id }); },
     release: function (id) { return rpc("release_delivery", { p_delivery_id: id }); },
-    delivered: function (id) { return rpc("mark_delivered", { p_delivery_id: id }); },
+    delivered: function (id, proofPath) { return rpc("mark_delivered", { p_delivery_id: id, p_proof_path: proofPath || null }); },
+    confirmPickup: function (id) { return rpc("confirm_pickup", { p_delivery_id: id }); },
+    confirmReceived: function (id, yes) { return rpc("confirm_received", { p_delivery_id: id, p_received: yes }); },
+    reconfirm: function (id) { return rpc("helper_reconfirm_delivery", { p_delivery_id: id }); },
+    problemContacts: function (listingId) { return rpc("delivery_problem_contacts", { p_listing_id: listingId }); },
+    problems: function (societyId) { return rpc("society_delivery_problems", { p_society_id: societyId }); },
+    resolve: function (id, outcome) { return rpc("resolve_delivery_problem", { p_delivery_id: id, p_outcome: outcome }); },
+    // The delivery photo: uploaded to <society>/<delivery>/<time>.<ext>.
+    uploadProof: async function (societyId, deliveryId, blob) {
+      var ext = blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
+      var path = societyId + "/" + deliveryId + "/" + Date.now() + "." + ext;
+      check(await db.storage.from(PROOFS).upload(path, blob, { contentType: blob.type, upsert: false }));
+      return path;
+    },
+    proofUrl: async function (path) {
+      if (!path) return null;
+      var r = check(await db.storage.from(PROOFS).createSignedUrls([path], 3600));
+      return r && r[0] && r[0].signedUrl ? r[0].signedUrl : null;
+    },
     openJobs: function (societyId) { return rpc("open_delivery_jobs", { p_society_id: societyId }); },
     myJobs: function (societyId) { return rpc("my_delivery_jobs", { p_society_id: societyId }); },
     // Today's Dumpy fee for a helper delivery (0 = off). Asked once per page;
@@ -163,6 +193,13 @@
       box.innerHTML = '<div class="card-box"><p class="small muted">' + esc(R.problem(err)) + "</p></div>";
       return;
     }
+    // A paid item delivered by a helper: the fee is added to what the taker
+    // pays the seller, in one payment (js/pay.js).
+    if (Dumpy.pay && Dumpy.pay.withFee) {
+      var viaFee = d && d.fee_via_seller && hasFee(d) && d.fee_status !== "waived" ? d.fee_inr : 0;
+      var hold = !d || !d.problem_at ? "" : d.problem_outcome === "not_delivered" ? "not_delivered" : d.problem_outcome ? "" : "problem";
+      Dumpy.pay.withFee(box.dataset.deliveryFor, viaFee, viaFee ? d.fee_status : "", hold);
+    }
     if (d && (d.status === "open" || d.status === "claimed")) showPlan(box, d);
     else if (d && d.status === "delivered") showDelivered(box, d);
     else if (box.dataset.listingStatus === "done") box.innerHTML = ""; // handed over without a delivery plan
@@ -170,9 +207,61 @@
   }
 
   function showDelivered(box, d) {
-    box.innerHTML = '<div class="card-box stack-sm"><div class="delivery__head"><h3>Delivery</h3>' + pill("delivered") + "</div>" +
-      '<p class="small muted">' + (d.helper_name ? "Brought over by " + esc(d.helper_name) + "." : "It has reached its new home.") + "</p>" +
-      feeBox(d, box.dataset.other) + "</div>";
+    var role = box.dataset.role;
+    var other = box.dataset.other;
+    var title = box.dataset.title || "the item";
+    var byHelper = d.mode === "helper" && !!d.helper_name;
+    var open = !!d.problem_at && !d.problem_outcome;
+    box.innerHTML = '<div class="card-box stack-sm"><div class="delivery__head"><h3>Delivery</h3>' +
+      (open ? '<span class="status status--pending">Problem reported</span>' : pill("delivered")) + "</div>" +
+      '<p class="small muted">' + (byHelper ? "Brought over by " + esc(d.helper_name) + (d.helper_tower ? " (" + esc(tower(d.helper_tower)) + ")" : "") +
+        ". Planned for " + esc(slotDateText(d.slot_start)) + "." : "It has reached its new home.") + "</p>" +
+      (byHelper && d.pickup_confirmed_at ? pickupLine(d, role) : "") +
+      (d.proof_path ? '<figure class="proof__photo" data-proof-photo><img alt="Delivery photo from ' + esc(d.helper_name || "the helper") +
+        '" loading="lazy" hidden><figcaption class="small muted">Photo the helper took at the door.</figcaption></figure>' : "") +
+      (byHelper ? receiptBox(d, role, other) : "") +
+      feeBox(d, other) + "</div>";
+    if (d.proof_path) {
+      api.proofUrl(d.proof_path).then(function (url) {
+        var img = box.querySelector("[data-proof-photo] img");
+        if (url && img) { img.src = url; img.hidden = false; }
+      }).catch(function (err) { console.error(err); });
+    }
+    // The buyer: did you get it? Asked in a pop-up the first time.
+    var answer = async function (yes, btn) {
+      if (btn) R.setBusy(btn, true, "Saving…");
+      try { await api.confirmReceived(d.id, yes); }
+      catch (err) { if (btn) R.setBusy(btn, false); alert(R.problem(err)); return; }
+      load(box);
+    };
+    box.querySelectorAll("[data-receipt]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.dataset.receipt === "no" && !confirm("Say you did NOT receive " + title + "? The helper and your society admin are told, and you'll get their phone numbers.")) return;
+        answer(b.dataset.receipt === "yes", b);
+      });
+    });
+    if (role === "taker" && byHelper && !d.received_at && !d.problem_at && !asked[d.id + ":received"]) {
+      asked[d.id + ":received"] = true;
+      ask({
+        title: "Did you receive " + title + "?",
+        text: (d.helper_name || "The helper") + " marked it delivered. Check the photo, then tell us.",
+        yes: "Yes, I got it", no: "No, I didn't", danger: true,
+        onYes: function (btn) { return answer(true, btn); },
+        onNo: function (btn) { return answer(false, btn); }
+      });
+    }
+    if (role === "taker" && open) {
+      api.problemContacts(box.dataset.deliveryFor).then(function (rows) {
+        var slot = box.querySelector("[data-problem-contacts]");
+        if (!slot) return;
+        slot.innerHTML = (rows || []).map(function (c) {
+          var label = c.role === "admin" ? "Society admin" : "Seller";
+          return '<div class="job__stop"><p class="requests__title">' + label + '</p><div class="person"><span class="avatar" aria-hidden="true">' + initial(c.display_name) +
+            '</span><div><p class="person__name">' + esc(c.display_name) + '</p><p class="person__meta">' + esc(tower(c.tower)) + "</p></div></div>" +
+            reachButtons(c.display_name, c.phone, null, "Hi " + c.display_name + ", this is about the Dumpy delivery of " + title + ". I did not receive it.") + "</div>";
+        }).join("") || '<p class="small">Ask your society admin for help.</p>';
+      }).catch(function (err) { console.error(err); });
+    }
     var paid = box.querySelector('[data-dact="feepaid"]');
     if (paid) paid.addEventListener("click", async function () {
       if (!confirm("Mark the " + rupees(d.fee_inr) + " Dumpy fee as paid? Only do this once the money has gone from your UPI app, or you have paid in cash.")) return;
@@ -183,50 +272,112 @@
     });
   }
 
+  // After a helper delivered it: the buyer's confirmation, or the problem.
+  function receiptBox(d, role, other) {
+    var helper = esc(d.helper_name || "The helper");
+    if (d.problem_outcome === "not_delivered") {
+      return '<div class="pay-warn" role="alert" data-problem><p class="pay-warn__t">' + ICON_ALERT + "<span>Not delivered</span></p>" +
+        '<p class="small">Your society admin decided this item was <strong>not delivered</strong>. Nobody pays for it, and Dumpy\'s delivery fee is dropped.</p></div>';
+    }
+    if (d.problem_outcome === "delivered") {
+      return '<p class="pay__done" data-problem>' + ICON_CHECK + "<span>Your society admin checked and decided it was delivered.</span></p>";
+    }
+    if (d.problem_at) {
+      var who = role === "taker" ? "You said" : esc(other || "The buyer") + " says";
+      return '<div class="pay-warn" role="alert" data-problem><p class="pay-warn__t">' + ICON_ALERT + "<span>Problem reported</span></p>" +
+        '<p class="small"><strong>' + who + " the item did not arrive.</strong> " + helper + " has been told and must confirm again, and your society admin will decide. " +
+        "Don't pay anything until then.</p>" +
+        '<p class="small">' + (d.helper_reconfirmed_at ? helper + " confirmed again that they delivered it." : "Waiting for " + helper + " to confirm again.") + "</p>" +
+        (role === "taker" ? '<p class="small"><strong>Call to check where it is:</strong></p><div class="stack-sm" data-problem-contacts><p class="small muted">Loading phone numbers…</p></div>' +
+          '<button type="button" class="btn btn--outline btn--block" data-receipt="yes">I found it, I got it</button>' : "") + "</div>";
+    }
+    if (d.received_at) {
+      return '<p class="pay__done" data-received>' + ICON_CHECK + "<span>" + (role === "taker" ? "You" : esc(other || "The buyer")) +
+        " confirmed receiving it, " + esc(momentText(d.received_at)) + ".</span></p>";
+    }
+    if (role === "taker") {
+      return '<div class="receipt-ask stack-sm" data-receipt-ask><p><strong>Did you receive it?</strong></p>' +
+        '<div class="btn-row"><button type="button" class="btn btn--danger" data-receipt="no">No, I didn\'t</button>' +
+        '<button type="button" class="btn btn--primary" data-receipt="yes">Yes, I got it</button></div></div>';
+    }
+    return '<p class="small muted" data-receipt-wait>Waiting for ' + esc(other || "the buyer") + " to confirm they received it.</p>";
+  }
+
   /* ---------- Dumpy's delivery fee ---------- */
   function rupees(n) { return "₹" + Number(n).toLocaleString("en-IN"); }
   function hasFee(d) { return d && d.mode === "helper" && d.fee_inr > 0 && d.fee_status && d.fee_status !== "none"; }
 
   // One line for the plan card and the form: what the fee is and who pays.
-  function feeLine(fee, role, other) {
+  // viaSeller: a paid item, where the taker pays the seller the price and the
+  // fee together, and the seller passes the fee on to Dumpy.
+  function feeLine(fee, role, other, viaSeller) {
+    var off = '<span class="muted">No fee if the delivery is called off.</span>';
+    if (viaSeller) {
+      var f = rupees(fee);
+      return role === "taker"
+        ? "<strong>How you pay:</strong> Dumpy's " + f + " delivery fee is added to the item price, and you pay " + esc(other || "the owner") +
+          " both in one payment. <strong>Don't pay before the item arrives and Dumpy confirms " + esc(other || "the owner") + " has paid Dumpy the " + f +
+          " fee.</strong> The pay buttons appear then. " + off
+        : "<strong>You pay Dumpy first:</strong> right after the helper delivers, you pay Dumpy's " + f + " delivery fee. " +
+          "<strong>You can't be paid until Dumpy confirms it.</strong> Then " + esc(other || "the taker") + " pays you the price + " + f + " in one payment. " + off;
+    }
     var who = role === "taker" ? "You pay" : esc(other || "The taker") + " pays";
-    return who + " Dumpy a <strong>" + rupees(fee) + " delivery fee</strong> by UPI, once the item arrives. " +
-      '<span class="muted">No fee if the delivery is called off.</span>';
+    return who + " Dumpy a <strong>" + rupees(fee) + " delivery fee</strong> by UPI, once the item arrives. " + off;
   }
 
   // After a helper delivered it: the taker pays the fee to Dumpy's UPI ID,
   // with the same Pay link, QR and Copy as item payments (js/pay.js).
   function feeBox(d, other) {
     if (!hasFee(d) || d.fee_status === "upcoming") return "";
+    if (d.problem_at && !d.problem_outcome && d.fee_status === "due") {
+      return '<div class="pay" data-fee="' + esc(d.id) + '"><p class="pay__title">Dumpy delivery fee · ' + rupees(d.fee_inr) + "</p>" +
+        '<p class="small">On hold until your society admin decides the delivery problem.</p></div>';
+    }
     var price = rupees(d.fee_inr);
     var hid = "fee-h-" + esc(d.id);
     var head = '<div class="pay" data-fee="' + esc(d.id) + '" role="group" aria-labelledby="' + hid + '">' +
       '<p class="pay__title" id="' + hid + '">Dumpy delivery fee · ' + price + "</p>";
     if (!d.fee_i_pay) {
+      if (d.fee_via_seller) {
+        return head + '<p class="small muted">Included in your payment to ' + esc(other || "the owner") + ", who passes it on to Dumpy.</p></div>";
+      }
       var said = { due: "not paid yet", marked: "marked as paid", confirmed: "paid", waived: "waived" }[d.fee_status] || "";
       return head + '<p class="small muted">' + esc(other || "The taker") + " pays this to Dumpy" + (said ? " (" + said + ")" : "") + ".</p></div>";
     }
-    if (d.fee_status === "confirmed") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Dumpy got your fee. Thank you!</span></p></div>";
+    if (d.fee_status === "confirmed") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Dumpy got your fee. Thank you!" +
+      (d.fee_via_seller ? " " + esc(other || "The taker") + " can now pay you, including the " + price + " back." : "") + "</span></p></div>";
     if (d.fee_status === "waived") return head + '<p class="pay__done">' + ICON_CHECK + "<span>Nothing to pay: this fee was waived.</span></p></div>";
     if (d.fee_status === "marked") {
+      if (d.fee_via_seller) {
+        return head + '<div class="pay-warn" role="alert"><p class="small"><strong>Waiting for Dumpy to confirm your ' + price + " fee.</strong> " +
+          esc(other || "The taker") + " can pay you once it does.</p></div>" +
+          '<p class="small muted">Reference ' + esc(d.fee_ref) + ".</p></div>";
+      }
       return head + '<p class="pay__done">' + ICON_CHECK + "<span>You marked this as paid. Thanks for keeping Dumpy going!</span></p>" +
         '<p class="small muted">Reference ' + esc(d.fee_ref) + ". Dumpy checks it arrived.</p></div>";
     }
     var upi = d.fee_upi_id;
     var P = Dumpy.pay;
-    var href = upi && P ? P.link(upi, d.fee_payee_name || "Dumpy", d.fee_inr, "delivery " + d.fee_ref) : null;
-    var qr = href ? P.qrSvg(href) : "";
-    return head +
-      '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's " + price +
-        " delivery fee. Settle any tip directly with " + esc(d.helper_name || "the helper") + " as you agreed.</p>" +
-      (href ? '<a class="btn btn--primary btn--lg btn--block" href="' + esc(href) + '" data-fee-link>Pay ' + price + " to Dumpy</a>" : "") +
-      (upi ? '<div class="pay__upi"><p><span class="small muted">UPI ID</span><br><span class="pay__id" translate="no">' + esc(upi) + "</span></p>" +
-        '<button type="button" class="btn btn--outline btn--sm" data-pay-copy="' + esc(upi) + '" aria-label="Copy UPI ID ' + esc(upi) + '">' + ICON_COPY + "Copy</button></div>" : "") +
-      (qr ? '<details class="pay__qr" data-pay-qr><summary>Show QR code</summary>' +
-        '<figure role="img" aria-label="QR code to pay Dumpy ' + price + ' by UPI">' + qr + "</figure>" +
-        '<p class="small muted">Scan with any UPI app on another phone.</p></details>' : "") +
-      '<p class="small muted">Put reference <strong translate="no">' + esc(d.fee_ref) + "</strong> in the payment note (Pay fills it in). Then tap I've paid.</p>" +
-      '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button></div>';
+    var href = null;
+    if (upi && P) {
+      href = P.link(upi, d.fee_payee_name || "Dumpy", d.fee_inr, "delivery " + d.fee_ref);
+      // Business UPI IDs: add the merchant code and a transaction reference,
+      // which merchant payments expect.
+      if (d.fee_upi_business) href += (d.fee_merchant_code ? "&mc=" + d.fee_merchant_code : "") + "&tr=" + encodeURIComponent(d.fee_ref);
+    }
+    var paidBtn = '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button>';
+    return head.replace(">Dumpy delivery fee · " + price + "<", ">Dumpy delivery fee<") +
+      (d.fee_via_seller
+        ? '<div class="pay-warn" role="alert" data-pay-warn><p class="pay-warn__t">' + ICON_ALERT + "<span>Pay Dumpy first</span></p>" +
+            '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. <strong>" + esc(other || "The taker") +
+            " can't pay you until you pay Dumpy's " + price + " delivery fee and Dumpy confirms it.</strong> You get the " + price +
+            " back in " + esc(other || "the taker") + "'s payment.</p></div>"
+        : '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's delivery fee. Any tip goes straight to " +
+            esc(d.helper_name || "the helper") + ", as you agreed.</p>") +
+      (href ? P.steps({ href: href, price: price, payee: d.fee_payee_name || "Dumpy", note: d.fee_upi_business ? "" : d.fee_ref,
+                        last: ["Come back and tap I've paid", paidBtn], oneTap: !!d.fee_upi_business })
+        : '<p class="small">Ask the person who runs Dumpy how to pay.</p>' + paidBtn) +
+      "</div>";
   }
 
   // An arrangement exists: show it, with Change and Cancel.
@@ -236,16 +387,21 @@
     var key = stateKey(d);
     var html = '<div class="card-box stack-sm">' +
       '<div class="delivery__head"><h3>Delivery</h3>' + pill(key) + "</div>" +
-      '<p class="delivery__plan"><strong>' + esc(modeText(d.mode, role, other, true)) + "</strong><br>" + esc(slotText(d.slot_start)) + "</p>";
+      '<p class="delivery__plan"><strong>' + esc(modeText(d.mode, role, other, true)) + "</strong><br>" +
+        '<span data-plan-when>' + esc(slotDateText(d.slot_start)) + "</span></p>";
     if (d.mode === "helper") {
       html += '<p class="small">' + (d.tip_note ? "Tip for the helper: <strong>" + esc(d.tip_note) + "</strong>. " : "No tip agreed. ") +
         '<span class="muted">Settle any tip directly with the helper. Dumpy never collects it.</span></p>' +
-        (hasFee(d) ? '<p class="small" data-fee-line>' + feeLine(d.fee_inr, role, other) + "</p>" : "");
+        (hasFee(d) ? (d.fee_via_seller ? '<div class="pay-warn" data-fee-line><p class="small">' : '<p class="small" data-fee-line>') +
+          feeLine(d.fee_inr, role, other, d.fee_via_seller) + (d.fee_via_seller ? "</p></div>" : "</p>") : "");
       if (d.status === "claimed") {
-        html += '<div class="person"><span class="avatar" aria-hidden="true">' + initial(d.helper_name) + "</span>" +
+        html += '<div class="helper-card" data-helper-card><p class="requests__title">Your helper</p>' +
+          '<div class="person"><span class="avatar" aria-hidden="true">' + initial(d.helper_name) + "</span>" +
           '<div><p class="person__name">' + esc(d.helper_name || "A neighbour") + '</p><p class="person__meta">Helper' +
           (d.helper_tower ? " · " + esc(tower(d.helper_tower)) : "") + "</p></div></div>" +
-          reachButtons(d.helper_name || "The helper", d.helper_phone, null, "Hi " + (d.helper_name || "") + ", this is about the Dumpy delivery " + slotText(d.slot_start) + ".");
+          '<p class="small"><strong>Delivering:</strong> ' + esc(slotDateText(d.slot_start)) + "</p>" +
+          reachButtons(d.helper_name || "The helper", d.helper_phone, null, "Hi " + (d.helper_name || "") + ", this is about the Dumpy delivery " + slotText(d.slot_start) + ".") +
+          pickupLine(d, role) + "</div>";
       } else {
         html += '<p class="small muted">Waiting for a helper. Neighbours who help deliver see this job now, with towers only. Your flats and phones stay hidden until one of them takes it.</p>';
       }
@@ -272,6 +428,66 @@
     });
     var change = box.querySelector('[data-dact="change"]');
     if (change) change.addEventListener("click", function () { showForm(box, d); });
+
+    // The seller confirms the helper picked it up: a pop-up the first time,
+    // and a button that stays until they do.
+    var pick = box.querySelector('[data-dact="pickup"]');
+    if (pick) {
+      var yes = async function (btn) {
+        if (btn) R.setBusy(btn, true, "Saving…");
+        try { await api.confirmPickup(d.id); }
+        catch (err) { if (btn) R.setBusy(btn, false); alert(R.problem(err)); return; }
+        load(box);
+      };
+      pick.addEventListener("click", function () { yes(pick); });
+      if (!asked[d.id + ":pickup"]) {
+        asked[d.id + ":pickup"] = true;
+        ask({
+          title: "Has " + (d.helper_name || "the helper") + " picked up the item?",
+          text: "Only say yes once " + (d.helper_name || "the helper") + " has the item in hand. " + (other || "The buyer") + " sees this.",
+          yes: "Yes, they picked it up", no: "Not yet",
+          onYes: function (btn) { return yes(btn); }
+        });
+      }
+    }
+  }
+
+  // Under the helper: whether the seller confirmed the pickup.
+  function pickupLine(d, role) {
+    if (d.pickup_confirmed_at) {
+      return '<p class="pay__done small" data-pickup-done>' + ICON_CHECK + "<span>" + (role === "owner" ? "You" : "The seller") +
+        " confirmed " + esc(d.helper_name || "the helper") + " picked it up, " + esc(momentText(d.pickup_confirmed_at)) + ".</span></p>";
+    }
+    return role === "owner"
+      ? '<button type="button" class="btn btn--outline btn--block" data-dact="pickup">' + esc(d.helper_name || "Helper") + " picked it up</button>"
+      : '<p class="small muted" data-pickup-wait>Not picked up yet. The seller confirms when ' + esc(d.helper_name || "the helper") + " has it.</p>";
+  }
+
+  /* ---------- Pop-up questions (a native <dialog>, like the report sheet) ---------- */
+  var asked = {};
+  // o: { title, text, html, yes, no, danger (style the no button red), onYes(btn), onNo(btn) }
+  function ask(o) {
+    if (!window.HTMLDialogElement) return; // the question stays on the page too
+    var sheet = document.createElement("dialog");
+    sheet.className = "sheet";
+    sheet.setAttribute("aria-labelledby", "ask-title");
+    sheet.setAttribute("data-ask", "");
+    sheet.innerHTML = '<div class="sheet__grip" aria-hidden="true"></div><div class="stack">' +
+      '<h2 id="ask-title">' + esc(o.title) + "</h2>" + (o.text ? '<p class="small">' + esc(o.text) + "</p>" : "") + (o.html || "") +
+      '<div class="btn-row"><button type="button" class="btn ' + (o.danger ? "btn--danger" : "btn--outline") + '" data-ask="no">' + esc(o.no) + "</button>" +
+      '<button type="button" class="btn btn--primary" data-ask="yes">' + esc(o.yes) + "</button></div></div>";
+    document.body.appendChild(sheet);
+    function done() { sheet.close(); sheet.remove(); }
+    sheet.addEventListener("cancel", function () { setTimeout(done, 0); });
+    sheet.querySelector('[data-ask="no"]').addEventListener("click", async function () {
+      if (o.onNo) await o.onNo(this);
+      done();
+    });
+    sheet.querySelector('[data-ask="yes"]').addEventListener("click", async function () {
+      await o.onYes(this);
+      done();
+    });
+    sheet.showModal();
   }
 
   // Pick who brings it, the day, the 2-hour window, and (for a helper) a tip note.
@@ -346,7 +562,11 @@
     (keptFee !== null ? Promise.resolve(keptFee) : api.fee()).then(function (fee) {
       var note = form.querySelector("[data-fee-note]");
       if (!fee || !note) return;
-      note.innerHTML = "<span>" + feeLine(fee, role, other) + "</span>";
+      // Booked already: as booked. Otherwise a paid item not paid for yet
+      // goes through the seller (the same rule as arrange_delivery).
+      var viaSeller = keptFee !== null ? !!d.fee_via_seller : +box.dataset.price > 0 && !box.dataset.paid;
+      note.innerHTML = "<span>" + feeLine(fee, role, other, viaSeller) + "</span>";
+      note.classList.toggle("pay-warn", viaSeller);
       note.hidden = false;
     });
 
@@ -430,13 +650,15 @@
       var li = b.closest("[data-job]");
       var act = b.dataset.jact;
       var title = li.dataset.title;
-      var ask = {
+      if (act === "delivered") { proofForm(li, sid, draw); return; }
+      if (act === "proof-cancel") { li.querySelector("[data-proof]").remove(); li.querySelector('[data-jact="delivered"]').hidden = false; return; }
+      var question = {
         claim: "Take the delivery of “" + title + "”? You'll see both flats and phone numbers, and they'll see yours.",
-        delivered: "Mark “" + title + "” as delivered? This closes the item.",
+        reconfirm: "Confirm again that you delivered “" + title + "” to the buyer's door? Your society admin will check with everyone.",
         release: "Give this job back? It goes back on the open list for other helpers."
       }[act];
-      if (!confirm(ask)) return;
-      R.setBusy(b, true, { claim: "Taking…", delivered: "Saving…", release: "Giving back…" }[act]);
+      if (!confirm(question)) return;
+      R.setBusy(b, true, { claim: "Taking…", reconfirm: "Saving…", release: "Giving back…" }[act]);
       try { await api[act](li.dataset.job); }
       catch (err) { R.setBusy(b, false); alert(R.problem(err)); await draw(); return; }
       await draw();
@@ -447,6 +669,67 @@
     });
 
     await draw();
+  }
+
+  // Mark delivered: the helper must add a photo that shows the item, the flat
+  // door or number, and their hand.
+  function proofForm(li, sid, done) {
+    if (li.querySelector("[data-proof]")) return;
+    var id = li.dataset.job;
+    var n = "proof-" + id.slice(0, 8);
+    li.querySelector('[data-jact="delivered"]').hidden = true;
+    var form = document.createElement("form");
+    form.className = "proof stack-sm";
+    form.setAttribute("data-proof", "");
+    form.noValidate = true;
+    form.innerHTML =
+      '<div class="pay-warn"><p class="pay-warn__t">' + ICON_ALERT + "<span>Photo needed</span></p>" +
+        '<p class="small">At the buyer\'s door, take <strong>one photo</strong> that shows all three:</p>' +
+        '<ol class="small"><li>the item</li><li>the flat door or flat number</li><li>your hand</li></ol></div>' +
+      '<label class="btn btn--primary btn--block proof__pick">' + ICON_CAMERA + '<span data-proof-pick-text>Take the photo</span>' +
+        '<input type="file" accept="image/*" capture="environment" class="visually-hidden" data-proof-file></label>' +
+      '<img class="proof__preview" alt="Your delivery photo" hidden data-proof-preview>' +
+      '<fieldset class="fieldset"><legend class="label">My photo shows</legend><div class="choice-col">' +
+        [["item", "The item"], ["door", "The flat door or flat number"], ["hand", "My hand"]].map(function (c) {
+          return '<label class="choice"><input type="checkbox" name="' + n + '" value="' + c[0] + '"><span>' + c[1] + "</span></label>";
+        }).join("") + "</div></fieldset>" +
+      '<p class="notice notice--error" role="alert" data-proof-err hidden>' + ICON_ALERT + "<span></span></p>" +
+      '<div class="btn-row"><button type="button" class="btn btn--outline" data-jact="proof-cancel">Not now</button>' +
+        '<button type="submit" class="btn btn--primary">Upload and mark delivered</button></div>';
+    li.appendChild(form);
+    var file = form.querySelector("[data-proof-file]");
+    var preview = form.querySelector("[data-proof-preview]");
+    var err = form.querySelector("[data-proof-err]");
+    function fail(msg) { err.querySelector("span").textContent = msg; err.hidden = false; }
+    file.addEventListener("change", function () {
+      err.hidden = true;
+      var f = file.files && file.files[0];
+      if (!f) return;
+      if (preview.src) URL.revokeObjectURL(preview.src);
+      preview.src = URL.createObjectURL(f);
+      preview.hidden = false;
+      form.querySelector("[data-proof-pick-text]").textContent = "Retake the photo";
+    });
+    form.addEventListener("change", function (e) { if (e.target.type === "checkbox") err.hidden = true; });
+    form.scrollIntoView({ block: "nearest" });
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var f = file.files && file.files[0];
+      if (!f) return fail("Take a photo first.");
+      if (form.querySelectorAll('input[type="checkbox"]:checked').length < 3) return fail("Your photo must show the item, the flat door or number, and your hand. Tick all three.");
+      var btn = form.querySelector('button[type="submit"]');
+      R.setBusy(btn, true, "Uploading…");
+      try {
+        var blob = Dumpy.shrinkPhoto ? await Dumpy.shrinkPhoto(f) : f;
+        var path = await api.uploadProof(sid, id, blob);
+        await api.delivered(id, path);
+      } catch (ex) {
+        R.setBusy(btn, false);
+        return fail(ex && /not-image|unreadable/.test(ex.message) ? "That file isn't a photo we can read. Take the photo again." : R.problem(ex));
+      }
+      if (preview.src) URL.revokeObjectURL(preview.src);
+      await done();
+    });
   }
 
   function routeText(from, to) {
@@ -477,8 +760,28 @@
       '<p class="row-card__title job__title" tabindex="-1"><span>' + esc(j.title) + "</span></p>" +
       '<p class="row-card__meta">' + esc(slotText(j.slot_start)) + " · " + (j.tip_note ? "Tip: " + esc(j.tip_note) : "No tip set") + "</p>" +
       (live ? '<span class="status status--accepted">Yours</span>' : pill(key));
+    var problem = j.problem_at && !j.problem_outcome;
+    if (problem) {
+      html += '<div class="pay-warn" role="alert" data-job-problem><p class="pay-warn__t">' + ICON_ALERT + "<span>The buyer says it didn't arrive</span></p>" +
+        '<p class="small">' + esc(j.drop_name || "The buyer") + " says they did not receive this item. Your society admin will look at your photo, call everyone and decide.</p>" +
+        (j.helper_reconfirmed_at
+          ? '<p class="small"><strong>You confirmed again that you delivered it.</strong> Waiting for your society admin.</p>'
+          : '<p class="small"><strong>If you did deliver it, confirm again:</strong></p><button type="button" class="btn btn--primary btn--block" data-jact="reconfirm">Yes, I delivered it</button>') +
+        "</div>" +
+        '<div class="requests stack">' +
+        stop("Picked up from", j.pickup_name, j.pickup_tower, j.pickup_flat, j.pickup_phone, j.title) +
+        stop("Delivered to", j.drop_name, j.drop_tower, j.drop_flat, j.drop_phone, j.title) + "</div>";
+      return html + "</li>";
+    }
+    if (j.problem_outcome) {
+      html += '<p class="small row-card__note">' + (j.problem_outcome === "delivered"
+        ? "Your society admin checked and decided it was delivered. Thanks!"
+        : "Your society admin decided this was not delivered.") + "</p>";
+      return html + "</li>";
+    }
     if (live) {
-      html += '<div class="requests stack">' +
+      html += (j.pickup_confirmed_at ? '<p class="pay__done small">' + ICON_CHECK + "<span>The seller confirmed you picked it up.</span></p>" : "") +
+        '<div class="requests stack">' +
         stop("Pick up from", j.pickup_name, j.pickup_tower, j.pickup_flat, j.pickup_phone, j.title) +
         stop("Drop at", j.drop_name, j.drop_tower, j.drop_flat, j.drop_phone, j.title) + "</div>" +
         '<div class="btn-row"><button type="button" class="btn btn--primary btn--sm" data-jact="delivered">Mark delivered</button>' +
@@ -495,7 +798,76 @@
   var ICON_ALERT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>';
   var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
   var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>';
+  var ICON_CAMERA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="4"/></svg>';
   var ICON_ROUTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>';
+
+  /* ---------- Admin page: delivery problems ---------- */
+  async function initAdminProblems(state) {
+    var section = document.getElementById("problems-section");
+    var list = document.getElementById("problems");
+    if (!section || !list) return;
+    var sid = state.society.society_id;
+
+    function person(label, name, t, flat, phone, title) {
+      return '<div class="job__stop"><p class="requests__title">' + label + '</p><div class="person"><span class="avatar" aria-hidden="true">' + initial(name) +
+        '</span><div><p class="person__name">' + esc(name || "A neighbour") + '</p><p class="person__meta">' +
+        esc([tower(t), flat ? "Flat " + flat : ""].filter(Boolean).join(" · ")) + "</p></div></div>" +
+        reachButtons(name || "They", phone, flat, "Hi " + (name || "") + ", this is your society admin, about the Dumpy delivery of “" + title + "”.") + "</div>";
+    }
+    function card(p) {
+      var open = !p.problem_outcome;
+      var html = '<li class="row-card" data-problem="' + esc(p.id) + '" data-title="' + esc(p.title) + '">' +
+        '<p class="row-card__title"><span>' + esc(p.title) + "</span></p>" +
+        '<p class="row-card__meta">Planned ' + esc(slotDateText(p.slot_start)) + " · reported " + esc(momentText(p.problem_at)) + "</p>" +
+        (open ? '<span class="status status--pending">Needs your decision</span>'
+              : '<span class="status status--' + (p.problem_outcome === "delivered" ? "accepted" : "cancelled") + '">' +
+                (p.problem_outcome === "delivered" ? "Decided: delivered" : "Decided: not delivered") + "</span>") +
+        '<p class="small">' + esc(p.buyer_name || "The buyer") + " says they did not receive it. " +
+          (p.helper_reconfirmed_at ? "<strong>" + esc(p.helper_name || "The helper") + " confirmed again that they delivered it.</strong>"
+                                   : "<strong>" + esc(p.helper_name || "The helper") + " has not confirmed again yet.</strong>") + "</p>" +
+        (p.proof_path ? '<figure class="proof__photo"><img alt="Delivery photo from ' + esc(p.helper_name || "the helper") + '" loading="lazy" hidden data-proof-src="' + esc(p.proof_path) +
+          '"><figcaption class="small muted">The helper\'s photo: check it shows the item, the door or flat number, and their hand.</figcaption></figure>' : "");
+      if (open) {
+        html += '<div class="requests stack">' +
+          person("Helper", p.helper_name, p.helper_tower, p.helper_flat, p.helper_phone, p.title) +
+          person("Seller", p.seller_name, p.seller_tower, p.seller_flat, p.seller_phone, p.title) +
+          person("Buyer", p.buyer_name, p.buyer_tower, p.buyer_flat, p.buyer_phone, p.title) + "</div>" +
+          '<p class="small muted">Call them, then decide. "Delivered" needs the helper to confirm again first. "Not delivered" also drops Dumpy\'s delivery fee.</p>' +
+          '<div class="btn-row"><button type="button" class="btn btn--danger btn--sm" data-pact="not_delivered">Not delivered</button>' +
+          '<button type="button" class="btn btn--primary btn--sm" data-pact="delivered"' + (p.helper_reconfirmed_at ? "" : " disabled") + ">It was delivered</button></div>";
+      }
+      return html + "</li>";
+    }
+    async function draw() {
+      var rows;
+      try { rows = await api.problems(sid) || []; }
+      catch (err) { console.error(err); return; } // the migration is not applied yet: keep the section hidden
+      section.hidden = false;
+      var waiting = rows.filter(function (p) { return !p.problem_outcome; }).length;
+      var count = document.getElementById("problems-count");
+      count.textContent = waiting + " open";
+      count.hidden = !waiting;
+      list.innerHTML = rows.length ? rows.map(card).join("")
+        : '<li class="card-box empty"><p>No delivery problems. If a buyer says a helper\'s delivery didn\'t arrive, it shows up here.</p></li>';
+      list.querySelectorAll("[data-proof-src]").forEach(function (img) {
+        api.proofUrl(img.dataset.proofSrc).then(function (url) { if (url) { img.src = url; img.hidden = false; } }).catch(function () {});
+      });
+    }
+    list.addEventListener("click", async function (e) {
+      var b = e.target.closest("button[data-pact]");
+      if (!b || b.disabled) return;
+      var li = b.closest("[data-problem]");
+      var msg = b.dataset.pact === "delivered"
+        ? "Decide that “" + li.dataset.title + "” was delivered? The buyer and seller are told."
+        : "Decide that “" + li.dataset.title + "” was NOT delivered? Nobody pays for it and Dumpy's fee is dropped.";
+      if (!confirm(msg)) return;
+      R.setBusy(b, true, "Saving…");
+      try { await api.resolve(li.dataset.problem, b.dataset.pact); }
+      catch (err) { R.setBusy(b, false); alert(R.problem(err)); return; }
+      draw();
+    });
+    await draw();
+  }
 
   Dumpy.delivery = { mount: mount, api: api, slotText: slotText };
 
@@ -503,6 +875,7 @@
     Dumpy.ready.then(function (state) {
       if (body.dataset.page === "profile") return initHelperSwitch(state);
       if (body.dataset.page === "jobs") return initJobs(state);
+      if (body.dataset.page === "admin" && state.society) return initAdminProblems(state);
     }).catch(function (err) { console.error(err); });
   }
 })();

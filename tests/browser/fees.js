@@ -15,6 +15,7 @@ const HELPER = { id: 'aaaaaaaa-0000-4000-8000-000000000012', email: 'demo.helper
 const BOSS = { id: 'aaaaaaaa-0000-4000-8000-000000000013', email: 'demo.runs.dumpy@example.com' };
 const LAMP = '11111111-0000-4000-8000-000000000090';
 const RUG = '11111111-0000-4000-8000-000000000091';
+const DESK = '11111111-0000-4000-8000-000000000092';
 
 const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
 
@@ -40,8 +41,8 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
 
   const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   const errors = [];
-  async function personPage(user, scheme) {
-    const ctx = await browser.newContext({ ...PHONE, colorScheme: scheme || 'light' });
+  async function personPage(user, scheme, userAgent) {
+    const ctx = await browser.newContext({ ...PHONE, colorScheme: scheme || 'light', ...(userAgent ? { userAgent } : {}) });
     await wire(ctx);
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errors.push(e.message));
@@ -113,16 +114,17 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   // 4. The helper takes and delivers it.
   const did = q1(`select id from public.deliveries where listing_id = '${LAMP}' and status = 'open'`);
   sql(`select public.claim_delivery('${did}')`, HELPER.id);
-  sql(`select public.mark_delivered('${did}')`, HELPER.id);
+  sql(`insert into storage.objects (bucket_id, name) select 'delivery-proofs', society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${did}'; select public.mark_delivered('${did}', (select society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${did}'))`, HELPER.id);
+  sql(`select public.confirm_received('${did}', true)`, TAKER.id); // so no "did you get it?" pop-up covers the page
 
   // 5. The taker pays the fee.
   await t.reload(); await settle(t);
   await t.waitForSelector(`${box} [data-fee]`);
-  const href = await t.getAttribute(`${box} [data-fee-link]`, 'href');
+  const href = await t.getAttribute(`${box} [data-pay-link]`, 'href');
   const ref = 'DLV-' + did.replace(/-/g, '').slice(0, 6).toUpperCase();
   check(href.startsWith('upi://pay?pa=dumpy.demo@okbank&pn=Dumpy&am=20.00&cu=INR&tn=') && decodeURIComponent(href).includes('delivery ' + ref),
     `Pay opens a UPI app with ₹20 to Dumpy and the reference ${ref} in the note`);
-  check((await t.textContent(`${box} [data-fee]`)).includes('Settle any tip directly with Demo Helper'), 'The fee box reminds the taker the tip goes to the helper');
+  check((await t.textContent(`${box} [data-fee]`)).includes('Any tip goes straight to Demo Helper'), 'The fee box reminds the taker the tip goes to the helper');
   check(await t.isVisible(`${box} [data-pay-copy]`), 'Copy UPI ID is offered');
   await noSideScroll(t, 'item fee due'); await smallTargets(t, 'item fee due');
   await shot(t, 'item-fee-due-light');
@@ -163,7 +165,7 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   check(true, 'The taker sees the fee as received');
 
   // 7. Now the rug can have a helper. Dark mode shots.
-  const td = await personPage(TAKER, 'dark');
+  const td = await personPage(TAKER, 'dark', 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36');
   await td.goto(SITE + '/pages/item.html?id=' + RUG); await settle(td);
   await td.waitForSelector(`${box} form`);
   await td.click(`${box} label:has-text("A neighbour helper brings it")`);
@@ -173,17 +175,110 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   const rid = q1(`select id from public.deliveries where listing_id = '${RUG}' and status = 'open'`);
   check(!!rid, 'Once paid, the taker can book a helper again');
   sql(`select public.claim_delivery('${rid}')`, HELPER.id);
-  sql(`select public.mark_delivered('${rid}')`, HELPER.id);
+  sql(`insert into storage.objects (bucket_id, name) select 'delivery-proofs', society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${rid}'; select public.mark_delivered('${rid}', (select society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${rid}'))`, HELPER.id);
+  sql(`select public.confirm_received('${rid}', true)`, TAKER.id); // so no "did you get it?" pop-up covers the page
   await td.reload(); await settle(td);
-  await td.waitForSelector(`${box} [data-fee-link]`);
+  await td.waitForSelector(`${box} [data-pay-app]`);
+  check((await td.getAttribute(`${box} [data-pay-app="PhonePe"]`, 'data-pay-id')) === 'dumpy.demo@okbank' && /3\s*Pay ₹20\s*Add the note DLV-[0-9A-F]{6}/.test(await td.textContent(`${box} .pay-steps`)) && /4\s*Come back and tap I've paid/.test(await td.textContent(`${box} .pay-steps`)), 'On Android the fee box offers PhonePe and the other UPI apps, with the ID to copy and ₹20 to enter');
   await shot(td, 'item-fee-due-dark');
+
+  // A business UPI ID: pasting the business QR link on Run Dumpy fills in the
+  // details, and the taker's app opens with ₹20 and the reference filled in.
+  await b.goto(SITE + '/pages/platform.html'); await settle(b);
+  await b.waitForSelector('#fees:not([hidden])');
+  check(await b.isHidden('#fee-mc-field'), 'The merchant code field stays hidden for a personal UPI ID');
+  await b.fill('#fee-upi', 'upi://pay?pa=Q987654321@ybl&pn=Dumpy%20Store&mc=5399&mode=02&purpose=00');
+  check((await b.inputValue('#fee-upi')) === 'Q987654321@ybl' && (await b.inputValue('#fee-name')) === 'Dumpy Store'
+    && await b.isChecked('#fee-business') && (await b.inputValue('#fee-mc')) === '5399',
+    'Pasting the business QR link fills in the UPI ID, name and merchant code, and ticks "business"');
+  await noSideScroll(b, 'run dumpy business upi'); await smallTargets(b, 'run dumpy business upi');
+  await b.evaluate(() => document.getElementById('fee-form').scrollIntoView());
+  await shot(b, 'platform-business-upi-light', false);
+  await b.click('#fee-form button[type=submit]');
+  await b.waitForSelector('#fee-saved:not([hidden])');
+  check(q1(`select fee_upi_id || ' ' || fee_upi_business || ' ' || fee_merchant_code from public.platform_settings`) === 'Q987654321@ybl true 5399', 'The business UPI ID is saved');
+  await td.reload(); await settle(td);
+  await td.waitForSelector(`${box} [data-pay-onetap]`);
+  const one = await td.getAttribute(`${box} [data-pay-app="Google Pay"]`, 'href');
+  check(one.startsWith('intent://pay?pa=Q987654321@ybl&pn=Dumpy%20Store&am=20.00&cu=INR&tn=') && one.includes('&mc=5399&tr=DLV-')
+    && one.endsWith('#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end'),
+    'With a business UPI ID, Google Pay opens with ₹20, the merchant code and the reference filled in\n       ' + one);
+  const oneText = await td.textContent(`${box} .pay-steps`);
+  check(/2\s*Check it says ₹20, then pay/.test(oneText) && /3\s*Come back and tap I've paid/.test(oneText), 'Business UPI: three steps, tap your app, check ₹20 and pay, tap I\'ve paid');
+  await noSideScroll(td, 'fee business'); await smallTargets(td, 'fee business');
+  await shot(td, 'item-fee-business-dark');
   const bd = await personPage(BOSS, 'dark');
   await bd.goto(SITE + '/pages/platform.html'); await settle(bd);
   await bd.waitForSelector(`#fee-list [data-fee="${rid}"]`);
   await shot(bd, 'platform-fees-dark');
 
+  // One payment for a paid item: the taker pays the seller ₹250 + ₹20 together,
+  // and the seller passes the fee on to Dumpy after the helper delivers.
+  sql(`insert into public.listings (id, society_id, owner_id, title, description, category, condition, price_inr) values
+         ('${DESK}','${SOCIETY}','${OWNER.id}','Wooden desk','Sturdy.','furniture','good',250);
+       insert into public.requests (listing_id, society_id, requester_id) values ('${DESK}','${SOCIETY}','${TAKER.id}');`);
+  sql(`select public.accept_request(id) from public.requests where listing_id = '${DESK}'`, OWNER.id);
+  const ownerUpi = q1(`select coalesce(upi_id, '') from public.profiles where user_id = '${OWNER.id}'`);
+  sql(`update public.profiles set upi_id = 'demo.owner@okaxis' where user_id = '${OWNER.id}'`);
+  const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+  const tp = await personPage(TAKER, 'light', ANDROID_UA);
+  await tp.goto(SITE + '/pages/item.html?id=' + DESK); await settle(tp);
+  await tp.waitForSelector(`${box} form`);
+  await tp.click(`${box} label:has-text("A neighbour helper brings it")`);
+  await tp.waitForSelector(`${box} [data-fee-note]:not([hidden])`);
+  const note = await tp.textContent(`${box} [data-fee-note]`);
+  check(note.includes("added to the item price, and you pay Demo Owner both in one payment") && note.includes("Don't pay before the item arrives and Dumpy confirms Demo Owner has paid Dumpy the ₹20 fee")
+    && await tp.evaluate(() => document.querySelector('.delivery [data-fee-note]').classList.contains('pay-warn')),
+    'Booking a helper for a paid item warns in red: one payment, only after Dumpy confirms the seller paid the fee');
+  sql(`select public.arrange_delivery('${DESK}', 'helper', (((now() at time zone 'Asia/Kolkata')::date + 1) + time '12:00') at time zone 'Asia/Kolkata', '')`, TAKER.id);
+  await tp.reload(); await settle(tp);
+  await tp.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  const lockT = await tp.textContent('.pay[data-pay]');
+  check(lockT.includes("Don't pay Demo Owner yet") && lockT.includes('₹270') && lockT.includes('Demo Owner pays Dumpy\'s ₹20 delivery fee first')
+    && (await tp.locator('.pay[data-pay] [data-pay-link], .pay[data-pay] [data-pay-app]').count()) === 0 && !(await tp.content()).includes('demo.owner@okaxis'),
+    'Before delivery the buyer sees a red "Don\'t pay yet" with the order of payments, no pay buttons and no seller UPI ID');
+  check((await tp.textContent(`${box} [data-fee-line]`)).includes("Don't pay before the item arrives"), 'The delivery plan repeats the warning');
+  await noSideScroll(tp, 'one payment locked'); await smallTargets(tp, 'one payment locked');
+  await shot(tp, 'item-one-payment-light');
+  const op = await personPage(OWNER);
+  await op.goto(SITE + '/pages/item.html?id=' + DESK); await settle(op);
+  await op.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  check((await op.textContent('.pay[data-pay]')).includes("You can't be paid yet") && await op.isDisabled('[data-pay-toggle]'),
+    'The seller sees a red "You can\'t be paid yet", and Mark as paid is locked');
+  check((await op.textContent(`${box} [data-fee-line]`)).includes("You can't be paid until Dumpy confirms it"), 'The seller\'s delivery plan explains it too');
+  const deskDid = q1(`select id from public.deliveries where listing_id = '${DESK}' and status = 'open'`);
+  sql(`select public.claim_delivery('${deskDid}')`, HELPER.id);
+  sql(`insert into storage.objects (bucket_id, name) select 'delivery-proofs', society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${deskDid}'; select public.mark_delivered('${deskDid}', (select society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${deskDid}'))`, HELPER.id);
+  sql(`select public.confirm_received('${deskDid}', true)`, TAKER.id); // so no "did you get it?" pop-up covers the page
+  await op.reload(); await settle(op);
+  await op.waitForSelector(`${box} [data-fee] [data-dact="feepaid"]`);
+  check((await op.textContent(`${box} [data-fee]`)).includes("Pay Dumpy first") && (await op.textContent(`${box} [data-fee]`)).includes("Demo Taker can't pay you until you pay Dumpy's ₹20 delivery fee and Dumpy confirms it"),
+    'After delivery the seller gets a red "Pay Dumpy first", with the pay steps and I\'ve paid');
+  await shot(op, 'item-seller-passes-fee-light');
+  await tp.reload(); await settle(tp);
+  await tp.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  check((await tp.textContent('.pay[data-pay]')).includes("Waiting for Demo Owner to pay Dumpy's ₹20 delivery fee") && (await tp.textContent(`${box} [data-fee]`)).includes('Included in your payment to Demo Owner'),
+    'After delivery the buyer still waits, and is told why');
+  await op.click(`${box} [data-dact="feepaid"]`);
+  await op.waitForFunction(() => /Waiting for Dumpy to confirm your ₹20 fee/.test(document.querySelector('.delivery').textContent));
+  check(q1(`select fee_marked_paid_at is not null from public.deliveries where id = '${deskDid}'`) === 't', 'The seller marks the fee paid and waits for Dumpy');
+  await tp.reload(); await settle(tp);
+  await tp.waitForSelector('.pay[data-pay] [data-pay-warn]');
+  check((await tp.textContent('.pay[data-pay]')).includes("says they paid Dumpy's ₹20 fee. Waiting for Dumpy to confirm"), 'Until Dumpy confirms, the buyer still can\'t pay');
+  sql(`select public.platform_settle_delivery_fee('${deskDid}', 'confirm')`, BOSS.id);
+  await tp.reload(); await settle(tp);
+  await tp.waitForSelector('.pay[data-pay] [data-pay-ok]');
+  const deskLink = await tp.getAttribute('.pay[data-pay] [data-pay-link]', 'href');
+  check(deskLink.includes('pa=demo.owner@okaxis') && deskLink.includes('am=270.00') && (await tp.textContent('.pay[data-pay] [data-pay-ok]')).includes('Dumpy confirmed Demo Owner paid the ₹20 delivery fee'),
+    'Once Dumpy confirms, the buyer gets the pay buttons for ₹270 to Demo Owner\n       ' + deskLink);
+  await shot(tp, 'item-one-payment-confirmed-light');
+  await op.reload(); await settle(op);
+  await op.waitForSelector('[data-pay-toggle]:not([disabled])');
+  check(true, 'and the seller can mark the item paid');
+  sql(`update public.profiles set upi_id = nullif('${ownerUpi}', '') where user_id = '${OWNER.id}'`);
+
   // Turn the fee back off so later test files start as before.
-  sql(`update public.platform_settings set delivery_fee_inr = 0, fee_upi_id = null`);
+  sql(`update public.platform_settings set delivery_fee_inr = 0, fee_upi_id = null, fee_upi_business = false, fee_merchant_code = null`);
   check(!sqlTry(`select 1`).error, 'Fee switched back off');
 
   check(errors.length === 0, 'No script errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
