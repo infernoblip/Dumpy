@@ -1500,7 +1500,7 @@ a.row-card__title:hover span { text-decoration: underline; text-underline-offset
 .choice input:disabled + span { opacity: 0.45; cursor: not-allowed; }
 .job__route { display: flex; align-items: center; gap: var(--space-2); font-weight: 650; color: var(--heading); }
 .job__route svg { flex: none; width: 20px; height: 20px; color: var(--brand); }
-.job .btn svg { width: 20px; height: 20px; flex: none; }
+.job .btn svg, #problems .btn svg { width: 20px; height: 20px; flex: none; }
 .job__stop .btn-row { margin-top: var(--space-2); }
 /* The first section that shows on a page needs no gap above it, even when hidden blocks come first. */
 .page > [hidden]:first-child + .section,
@@ -2038,3 +2038,12 @@ html:active-view-transition-type(back)::view-transition-old(root) { animation: v
 .pay-warn__t svg { flex: none; width: 26px; height: 26px; }
 .pay-warn ol { margin: 0; padding-left: 1.25rem; display: grid; gap: 4px; }
 .pay-ok { border-left: 4px solid var(--brand); padding-left: var(--space-2); }
+
+/* Delivery proof and confirmations (js/delivery.js) */
+.helper-card { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.proof__photo { margin: 0; display: grid; gap: 4px; }
+.proof__photo img, .proof__preview { width: 100%; max-height: 320px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+.proof__pick { position: relative; }
+.proof__pick:focus-within { outline: 3px solid var(--brand); outline-offset: 2px; }
+.receipt-ask { padding: var(--space-3); border: 2px solid var(--brand); border-radius: 14px; }
+.receipt-ask .btn-row .btn, .pay-warn .btn { flex: 1; }

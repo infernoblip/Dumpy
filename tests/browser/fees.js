@@ -114,7 +114,8 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   // 4. The helper takes and delivers it.
   const did = q1(`select id from public.deliveries where listing_id = '${LAMP}' and status = 'open'`);
   sql(`select public.claim_delivery('${did}')`, HELPER.id);
-  sql(`select public.mark_delivered('${did}')`, HELPER.id);
+  sql(`insert into storage.objects (bucket_id, name) select 'delivery-proofs', society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${did}'; select public.mark_delivered('${did}', (select society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${did}'))`, HELPER.id);
+  sql(`select public.confirm_received('${did}', true)`, TAKER.id); // so no "did you get it?" pop-up covers the page
 
   // 5. The taker pays the fee.
   await t.reload(); await settle(t);
@@ -174,7 +175,8 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   const rid = q1(`select id from public.deliveries where listing_id = '${RUG}' and status = 'open'`);
   check(!!rid, 'Once paid, the taker can book a helper again');
   sql(`select public.claim_delivery('${rid}')`, HELPER.id);
-  sql(`select public.mark_delivered('${rid}')`, HELPER.id);
+  sql(`insert into storage.objects (bucket_id, name) select 'delivery-proofs', society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${rid}'; select public.mark_delivered('${rid}', (select society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${rid}'))`, HELPER.id);
+  sql(`select public.confirm_received('${rid}', true)`, TAKER.id); // so no "did you get it?" pop-up covers the page
   await td.reload(); await settle(td);
   await td.waitForSelector(`${box} [data-pay-app]`);
   check((await td.getAttribute(`${box} [data-pay-app="PhonePe"]`, 'data-pay-id')) === 'dumpy.demo@okbank' && /3\s*Pay ₹20\s*Add the note DLV-[0-9A-F]{6}/.test(await td.textContent(`${box} .pay-steps`)) && /4\s*Come back and tap I've paid/.test(await td.textContent(`${box} .pay-steps`)), 'On Android the fee box offers PhonePe and the other UPI apps, with the ID to copy and ₹20 to enter');
@@ -246,7 +248,8 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   check((await op.textContent(`${box} [data-fee-line]`)).includes("You can't be paid until Dumpy confirms it"), 'The seller\'s delivery plan explains it too');
   const deskDid = q1(`select id from public.deliveries where listing_id = '${DESK}' and status = 'open'`);
   sql(`select public.claim_delivery('${deskDid}')`, HELPER.id);
-  sql(`select public.mark_delivered('${deskDid}')`, HELPER.id);
+  sql(`insert into storage.objects (bucket_id, name) select 'delivery-proofs', society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${deskDid}'; select public.mark_delivered('${deskDid}', (select society_id || '/' || id || '/proof.webp' from public.deliveries where id = '${deskDid}'))`, HELPER.id);
+  sql(`select public.confirm_received('${deskDid}', true)`, TAKER.id); // so no "did you get it?" pop-up covers the page
   await op.reload(); await settle(op);
   await op.waitForSelector(`${box} [data-fee] [data-dact="feepaid"]`);
   check((await op.textContent(`${box} [data-fee]`)).includes("Pay Dumpy first") && (await op.textContent(`${box} [data-fee]`)).includes("Demo Taker can't pay you until you pay Dumpy's ₹20 delivery fee and Dumpy confirms it"),

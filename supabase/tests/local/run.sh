@@ -44,6 +44,8 @@ echo "== moderation tests"
 psql_run -At -f "$root/tests/moderation_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
 echo "== delivery fee tests"
 psql_run -At -f "$root/tests/delivery_fee_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
+echo "== delivery proof tests"
+psql_run -At -f "$root/tests/delivery_proof_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
 echo "== society tests"
 psql_run -At -f "$root/tests/societies_test.sql" 2>&1 | sed 's/^psql:[^:]*:[0-9]*: NOTICE:  /  /' | grep -v '^$'
 echo "== concurrent accept test"

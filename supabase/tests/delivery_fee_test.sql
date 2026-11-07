@@ -196,7 +196,8 @@ select dumpy_ftests.refused($$ select public.mark_delivery_fee_paid((select id f
 
 select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0003');
 select public.claim_delivery((select id from dumpy_ftests.ids where name = 'd1'));
-select public.mark_delivered((select id from dumpy_ftests.ids where name = 'd1'));
+insert into storage.objects (bucket_id, name) select 'delivery-proofs', d.society_id || '/' || d.id || '/proof.webp' from public.deliveries d where d.id = (select id from dumpy_ftests.ids where name = 'd1');
+select public.mark_delivered((select id from dumpy_ftests.ids where name = 'd1'), (select d.society_id || '/' || d.id || '/proof.webp' from public.deliveries d where d.id = (select id from dumpy_ftests.ids where name = 'd1')));
 
 select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0001');
 select dumpy_ftests.ok((select fee_status || ' ' || fee_i_pay || ' ' || coalesce(fee_upi_id, '-')
@@ -348,7 +349,8 @@ select dumpy_ftests.ok((select fee_payer_id from public.deliveries where id = (s
 
 select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0003');
 select public.claim_delivery((select id from dumpy_ftests.ids where name = 'p1'));
-select public.mark_delivered((select id from dumpy_ftests.ids where name = 'p1'));
+insert into storage.objects (bucket_id, name) select 'delivery-proofs', d.society_id || '/' || d.id || '/proof.webp' from public.deliveries d where d.id = (select id from dumpy_ftests.ids where name = 'p1');
+select public.mark_delivered((select id from dumpy_ftests.ids where name = 'p1'), (select d.society_id || '/' || d.id || '/proof.webp' from public.deliveries d where d.id = (select id from dumpy_ftests.ids where name = 'p1')));
 
 select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0002');
 select dumpy_ftests.refused($$ select public.mark_delivery_fee_paid((select id from dumpy_ftests.ids where name = 'p1')) $$,

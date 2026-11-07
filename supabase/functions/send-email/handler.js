@@ -72,6 +72,16 @@ export function buildEmail(n, siteUrl) {
       body = title + " has been delivered. Thank you for passing things on in your society." +
         "\n\nThe item:\n" + link;
       break;
+    case "delivery_problem":
+      subject = "Problem with the delivery of " + title;
+      body = who + " says they did not receive " + title + ", which a Dumpy helper marked as delivered." +
+        "\n\nIf you were the helper: open your jobs, check the photo and confirm you delivered it:\n" + site + "/pages/jobs.html" +
+        "\n\nIf you are a society admin: look at the photo, call the helper, the seller and the buyer, then decide on the Admin page:\n" + site + "/pages/admin.html";
+      break;
+    case "delivery_problem_resolved":
+      subject = "Your society admin decided on " + title;
+      body = "Your society admin looked into the delivery of " + title + " and made a decision. You can see it here:\n" + link;
+      break;
     default:
       return null;
   }

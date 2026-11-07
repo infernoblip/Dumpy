@@ -276,6 +276,14 @@
       '<p class="pay__title" id="' + hid + '">Payment · ' + price + "</p>";
 
     var otherName = esc(other);
+    if (l.delivery_hold && !paid) {
+      var holdText = l.delivery_hold === "not_delivered"
+        ? "Your society admin decided this item was not delivered, so there is nothing to pay."
+        : "The buyer reported the item did not arrive. Your society admin will decide. Nobody pays until then.";
+      return head.replace(">Payment · " + price + "<", ">Payment<") +
+        warn(l.delivery_hold === "not_delivered" ? "Nothing to pay" : "Payment on hold", '<p class="small"><strong>' + holdText + "</strong></p>") +
+        "</div>";
+    }
     if (locked && !paid) {
       var fr = rupees(fee);
       if (ownerView) {
@@ -399,14 +407,18 @@
   // taker then pays the seller both in one payment.
   //   fee    the fee the seller collects (0 if none)
   //   state  the fee's status: upcoming, due, marked, confirmed or waived
-  function withFee(listingId, fee, state) {
+  //   hold   "problem" (the buyer reported it did not arrive) or
+  //          "not_delivered" (the society admin decided so): don't pay
+  function withFee(listingId, fee, state, hold) {
     var k = CARDS[listingId];
     var box = document.querySelector('.pay[data-pay="' + listingId + '"]');
     fee = fee > 0 ? fee : 0;
     state = fee ? state || "" : "";
+    hold = hold || "";
     if (!k || !box) return;
-    if (k.l.delivery_fee_known && (k.l.delivery_fee_extra || 0) === fee && (k.l.delivery_fee_state || "") === state) return;
+    if (k.l.delivery_fee_known && (k.l.delivery_fee_extra || 0) === fee && (k.l.delivery_fee_state || "") === state && (k.l.delivery_hold || "") === hold) return;
     k.l.delivery_fee_known = true;
+    k.l.delivery_hold = hold;
     k.l.delivery_fee_extra = fee;
     k.l.delivery_fee_state = state;
     var open = box.querySelector("[data-pay-qr]");
