@@ -143,6 +143,7 @@
   //   o.note     a reference to add as the payment note, or ""
   //   o.last     [title, html] for a final step (for example "Tap I've paid")
   //   o.oneTap   true for a business UPI ID: the app opens with everything filled in
+  //   o.breakdown  optional HTML under the amount, e.g. "₹250 item + ₹20 delivery fee"
   function steps(o) {
     var kind = phoneKind();
     var href = o.href;
@@ -152,6 +153,7 @@
     var noteText = o.note ? ' Add the note <strong translate="no">' + esc(o.note) + "</strong>." : "";
     var n = 0;
     var html = '<p class="pay__sum"><span class="pay__sum-amount">' + esc(o.price) + '</span><span class="pay__sum-to">to ' + esc(o.payee) + "</span></p>" +
+      (o.breakdown ? '<p class="small pay__breakdown" data-pay-breakdown>' + o.breakdown + "</p>" : "") +
       '<ol class="pay-steps">';
     if (kind && o.oneTap) {
       html += step(++n, "Tap the app you pay with",
@@ -232,9 +234,19 @@
   //   l          the listing (price_inr, status, title, paid_at)
   //   c          get_contact's row: the other person (null if it didn't load)
   //   ownerView  true for the owner, false for the taker
+  // The pay boxes on the page, so a helper delivery's fee can be added later.
+  var CARDS = {};
+
   function card(l, c, ownerView) {
     if (!isPaid(l) || !matched(l)) return "";
-    var price = rupees(l.price_inr);
+    CARDS[l.id] = { l: l, c: c, ownerView: ownerView };
+    // When a helper delivers a paid item, the taker pays the seller the price
+    // and Dumpy's delivery fee in one payment; the seller passes the fee on
+    // (js/delivery.js calls withFee).
+    var fee = l.delivery_fee_extra || 0;
+    var total = l.price_inr + fee;
+    var price = rupees(total);
+    var split = fee ? rupees(l.price_inr) + " for the item + " + rupees(fee) + " Dumpy delivery fee" : "";
     var paid = !!l.paid_at;
     var other = c ? c.display_name : (ownerView ? "the taker" : "the owner");
     var hid = "pay-h-" + esc(l.id);
@@ -245,7 +257,8 @@
       var myUpi = Dumpy.state && Dumpy.state.profile && Dumpy.state.profile.upi_id;
       return head +
         '<label class="switch pay__switch"><span class="switch__text"><strong>Mark as paid</strong><br>' +
-        '<span class="small muted" data-pay-status>' + (paid ? "Paid. Thanks for using Dumpy." : esc(other) + " pays you " + price + " by UPI or cash.") + "</span></span>" +
+        '<span class="small muted" data-pay-status>' + (paid ? "Paid. Thanks for using Dumpy." : esc(other) + " pays you " + price + " by UPI or cash" +
+          (fee ? " (" + split + ", which you pass on to Dumpy after the delivery)" : "") + ".") + "</span></span>" +
         '<input type="checkbox" data-pay-toggle' + (paid ? " checked" : "") + ' aria-describedby="' + hid + '"></label>' +
         (paid || myUpi ? "" : '<p class="small muted">Add your UPI ID in <a href="profile.html">Profile</a> so ' + esc(other) + " can pay you by UPI.</p>") +
         "</div>";
@@ -257,12 +270,14 @@
 
     var upi = c && c.upi_id && UPI_RE.test(c.upi_id) ? c.upi_id : null;
     if (!upi) {
-      return head + '<p class="small">' + esc(other) + " has not added a UPI ID. Pay " + price + " in cash when you collect it.</p></div>";
+      return head + '<p class="small">' + esc(other) + " has not added a UPI ID. Pay " + price + " in cash when you collect it." +
+        (fee ? " That's " + split + "." : "") + "</p></div>";
     }
 
-    var href = link(upi, c.display_name, l.price_inr, l.title);
+    var href = link(upi, c.display_name, total, l.title + (fee ? " + delivery" : ""));
     head = head.replace(">Payment · " + price + "<", ">Payment<");
-    return head + steps({ href: href, price: price, payee: c.display_name }) + "</div>";
+    return head + steps({ href: href, price: price, payee: c.display_name,
+      breakdown: fee ? esc(split) + ". " + esc(c.display_name) + " passes the fee on to Dumpy. No fee if the delivery is called off." : "" }) + "</div>";
   }
 
   async function copy(text) {
@@ -332,5 +347,18 @@
     input.disabled = false;
   });
 
-  Dumpy.pay = { link: link, steps: steps, payLinks: payLinks, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
+  // Add (or remove, with 0) Dumpy's delivery fee to an item's pay box: the
+  // taker then pays the seller both in one payment.
+  function withFee(listingId, fee) {
+    var k = CARDS[listingId];
+    var box = document.querySelector('.pay[data-pay="' + listingId + '"]');
+    fee = fee > 0 ? fee : 0;
+    if (!k || !box || (k.l.delivery_fee_extra || 0) === fee) return;
+    k.l.delivery_fee_extra = fee;
+    var open = box.querySelector("[data-pay-qr]");
+    box.outerHTML = card(k.l, k.c, k.ownerView);
+    if (open && open.open) document.querySelector('.pay[data-pay="' + listingId + '"] [data-pay-qr]').open = true;
+  }
+
+  Dumpy.pay = { link: link, steps: steps, payLinks: payLinks, withFee: withFee, card: card, loadStatus: loadStatus, setPaid: setPaid, qrSvg: qrSvg };
 })();

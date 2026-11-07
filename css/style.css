@@ -2022,3 +2022,4 @@ html:active-view-transition-type(back)::view-transition-old(root) { animation: v
 .pay__links { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .pay__links-alt { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .pay__links-alt .btn { flex: 1 1 140px; }
+.pay__breakdown { margin-top: calc(var(--space-2) * -1); }

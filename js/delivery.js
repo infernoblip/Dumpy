@@ -163,6 +163,11 @@
       box.innerHTML = '<div class="card-box"><p class="small muted">' + esc(R.problem(err)) + "</p></div>";
       return;
     }
+    // A paid item delivered by a helper: the fee is added to what the taker
+    // pays the seller, in one payment (js/pay.js).
+    if (Dumpy.pay && Dumpy.pay.withFee) {
+      Dumpy.pay.withFee(box.dataset.deliveryFor, d && d.fee_via_seller && hasFee(d) && d.fee_status !== "waived" ? d.fee_inr : 0);
+    }
     if (d && (d.status === "open" || d.status === "claimed")) showPlan(box, d);
     else if (d && d.status === "delivered") showDelivered(box, d);
     else if (box.dataset.listingStatus === "done") box.innerHTML = ""; // handed over without a delivery plan
@@ -188,10 +193,17 @@
   function hasFee(d) { return d && d.mode === "helper" && d.fee_inr > 0 && d.fee_status && d.fee_status !== "none"; }
 
   // One line for the plan card and the form: what the fee is and who pays.
-  function feeLine(fee, role, other) {
+  // viaSeller: a paid item, where the taker pays the seller the price and the
+  // fee together, and the seller passes the fee on to Dumpy.
+  function feeLine(fee, role, other, viaSeller) {
+    var off = '<span class="muted">No fee if the delivery is called off.</span>';
+    if (viaSeller) {
+      return role === "taker"
+        ? "Dumpy's <strong>" + rupees(fee) + " delivery fee</strong> is added to what you pay " + esc(other || "the owner") + ", so it's one payment. " + off
+        : esc(other || "The taker") + " pays you Dumpy's <strong>" + rupees(fee) + " delivery fee</strong> with the item price. Pass it on to Dumpy once the item arrives. " + off;
+    }
     var who = role === "taker" ? "You pay" : esc(other || "The taker") + " pays";
-    return who + " Dumpy a <strong>" + rupees(fee) + " delivery fee</strong> by UPI, once the item arrives. " +
-      '<span class="muted">No fee if the delivery is called off.</span>';
+    return who + " Dumpy a <strong>" + rupees(fee) + " delivery fee</strong> by UPI, once the item arrives. " + off;
   }
 
   // After a helper delivered it: the taker pays the fee to Dumpy's UPI ID,
@@ -203,6 +215,9 @@
     var head = '<div class="pay" data-fee="' + esc(d.id) + '" role="group" aria-labelledby="' + hid + '">' +
       '<p class="pay__title" id="' + hid + '">Dumpy delivery fee · ' + price + "</p>";
     if (!d.fee_i_pay) {
+      if (d.fee_via_seller) {
+        return head + '<p class="small muted">Included in your payment to ' + esc(other || "the owner") + ", who passes it on to Dumpy.</p></div>";
+      }
       var said = { due: "not paid yet", marked: "marked as paid", confirmed: "paid", waived: "waived" }[d.fee_status] || "";
       return head + '<p class="small muted">' + esc(other || "The taker") + " pays this to Dumpy" + (said ? " (" + said + ")" : "") + ".</p></div>";
     }
@@ -223,8 +238,11 @@
     }
     var paidBtn = '<button type="button" class="btn btn--outline btn--block" data-dact="feepaid">I\'ve paid</button>';
     return head.replace(">Dumpy delivery fee · " + price + "<", ">Dumpy delivery fee<") +
-      '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's delivery fee. Any tip goes straight to " +
-        esc(d.helper_name || "the helper") + ", as you agreed.</p>" +
+      (d.fee_via_seller
+        ? '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. " + esc(other || "The taker") +
+            " pays you " + price + " for Dumpy's delivery fee with the item price. Please pass it on to Dumpy.</p>"
+        : '<p class="small">' + esc(d.helper_name || "The helper") + " brought it over. Please pay Dumpy's delivery fee. Any tip goes straight to " +
+            esc(d.helper_name || "the helper") + ", as you agreed.</p>") +
       (href ? P.steps({ href: href, price: price, payee: d.fee_payee_name || "Dumpy", note: d.fee_upi_business ? "" : d.fee_ref,
                         last: ["Come back and tap I've paid", paidBtn], oneTap: !!d.fee_upi_business })
         : '<p class="small">Ask the person who runs Dumpy how to pay.</p>' + paidBtn) +
@@ -242,7 +260,7 @@
     if (d.mode === "helper") {
       html += '<p class="small">' + (d.tip_note ? "Tip for the helper: <strong>" + esc(d.tip_note) + "</strong>. " : "No tip agreed. ") +
         '<span class="muted">Settle any tip directly with the helper. Dumpy never collects it.</span></p>' +
-        (hasFee(d) ? '<p class="small" data-fee-line>' + feeLine(d.fee_inr, role, other) + "</p>" : "");
+        (hasFee(d) ? '<p class="small" data-fee-line>' + feeLine(d.fee_inr, role, other, d.fee_via_seller) + "</p>" : "");
       if (d.status === "claimed") {
         html += '<div class="person"><span class="avatar" aria-hidden="true">' + initial(d.helper_name) + "</span>" +
           '<div><p class="person__name">' + esc(d.helper_name || "A neighbour") + '</p><p class="person__meta">Helper' +
@@ -348,7 +366,10 @@
     (keptFee !== null ? Promise.resolve(keptFee) : api.fee()).then(function (fee) {
       var note = form.querySelector("[data-fee-note]");
       if (!fee || !note) return;
-      note.innerHTML = "<span>" + feeLine(fee, role, other) + "</span>";
+      // Booked already: as booked. Otherwise a paid item not paid for yet
+      // goes through the seller (the same rule as arrange_delivery).
+      var viaSeller = keptFee !== null ? !!d.fee_via_seller : +box.dataset.price > 0 && !box.dataset.paid;
+      note.innerHTML = "<span>" + feeLine(fee, role, other, viaSeller) + "</span>";
       note.hidden = false;
     });
 

@@ -15,6 +15,7 @@ const HELPER = { id: 'aaaaaaaa-0000-4000-8000-000000000012', email: 'demo.helper
 const BOSS = { id: 'aaaaaaaa-0000-4000-8000-000000000013', email: 'demo.runs.dumpy@example.com' };
 const LAMP = '11111111-0000-4000-8000-000000000090';
 const RUG = '11111111-0000-4000-8000-000000000091';
+const DESK = '11111111-0000-4000-8000-000000000092';
 
 const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
 
@@ -208,6 +209,55 @@ const q1 = (query) => sql(query).split('\n').filter(Boolean).pop() || '';
   await bd.goto(SITE + '/pages/platform.html'); await settle(bd);
   await bd.waitForSelector(`#fee-list [data-fee="${rid}"]`);
   await shot(bd, 'platform-fees-dark');
+
+  // One payment for a paid item: the taker pays the seller ₹250 + ₹20 together,
+  // and the seller passes the fee on to Dumpy after the helper delivers.
+  sql(`insert into public.listings (id, society_id, owner_id, title, description, category, condition, price_inr) values
+         ('${DESK}','${SOCIETY}','${OWNER.id}','Wooden desk','Sturdy.','furniture','good',250);
+       insert into public.requests (listing_id, society_id, requester_id) values ('${DESK}','${SOCIETY}','${TAKER.id}');`);
+  sql(`select public.accept_request(id) from public.requests where listing_id = '${DESK}'`, OWNER.id);
+  const ownerUpi = q1(`select coalesce(upi_id, '') from public.profiles where user_id = '${OWNER.id}'`);
+  sql(`update public.profiles set upi_id = 'demo.owner@okaxis' where user_id = '${OWNER.id}'`);
+  const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+  const tp = await personPage(TAKER, 'light', ANDROID_UA);
+  await tp.goto(SITE + '/pages/item.html?id=' + DESK); await settle(tp);
+  await tp.waitForSelector(`${box} form`);
+  await tp.click(`${box} label:has-text("A neighbour helper brings it")`);
+  await tp.waitForSelector(`${box} [data-fee-note]:not([hidden])`);
+  check((await tp.textContent(`${box} [data-fee-note]`)).includes("₹20 delivery fee is added to what you pay Demo Owner, so it's one payment"),
+    'Booking a helper for a paid item says the fee is added to the payment to the seller');
+  sql(`select public.arrange_delivery('${DESK}', 'helper', (((now() at time zone 'Asia/Kolkata')::date + 1) + time '12:00') at time zone 'Asia/Kolkata', '')`, TAKER.id);
+  await tp.reload(); await settle(tp);
+  await tp.waitForFunction(() => /₹270/.test((document.querySelector('.pay[data-pay] .pay__sum') || {}).textContent || ''));
+  check((await tp.textContent('.pay[data-pay] [data-pay-breakdown]')).includes('₹250 for the item + ₹20 Dumpy delivery fee. Demo Owner passes the fee on to Dumpy'),
+    'The taker\'s pay box shows one payment: ₹270 to Demo Owner, ₹250 item + ₹20 fee');
+  const deskLink = await tp.getAttribute('.pay[data-pay] [data-pay-link]', 'href');
+  check(deskLink.includes('am=270.00') && deskLink.startsWith('upi://pay?pa=') && !deskLink.includes('Q987654321'),
+    'The payment link pays the seller ₹270\n       ' + deskLink);
+  check((await tp.textContent(`${box} [data-fee-line]`)).includes("added to what you pay Demo Owner"), 'The delivery plan says the same');
+  await noSideScroll(tp, 'one payment'); await smallTargets(tp, 'one payment');
+  await shot(tp, 'item-one-payment-light');
+  const op = await personPage(OWNER);
+  await op.goto(SITE + '/pages/item.html?id=' + DESK); await settle(op);
+  await op.waitForFunction(() => /₹270/.test((document.querySelector('[data-pay-status]') || {}).textContent || ''));
+  check((await op.textContent('[data-pay-status]')).includes('pays you ₹270 by UPI or cash (₹250 for the item + ₹20 Dumpy delivery fee, which you pass on to Dumpy'),
+    'The seller is told they get ₹270 and pass ₹20 on');
+  const deskDid = q1(`select id from public.deliveries where listing_id = '${DESK}' and status = 'open'`);
+  sql(`select public.claim_delivery('${deskDid}')`, HELPER.id);
+  sql(`select public.mark_delivered('${deskDid}')`, HELPER.id);
+  await op.reload(); await settle(op);
+  await op.waitForSelector(`${box} [data-fee] [data-dact="feepaid"]`);
+  check((await op.textContent(`${box} [data-fee]`)).includes('Demo Taker pays you ₹20 for Dumpy\'s delivery fee with the item price. Please pass it on to Dumpy'),
+    'After delivery the seller is asked to pass the fee on, with I\'ve paid');
+  await shot(op, 'item-seller-passes-fee-light');
+  await tp.reload(); await settle(tp);
+  await tp.waitForSelector(`${box} [data-fee]`);
+  check((await tp.textContent(`${box} [data-fee]`)).includes('Included in your payment to Demo Owner') && (await tp.locator(`${box} [data-fee] [data-dact="feepaid"]`).count()) === 0,
+    'The taker has nothing extra to pay Dumpy');
+  await op.click(`${box} [data-dact="feepaid"]`);
+  await op.waitForFunction(() => /You marked this as paid/.test(document.querySelector('.delivery').textContent));
+  check(q1(`select fee_marked_paid_at is not null from public.deliveries where id = '${deskDid}'`) === 't', 'The seller marks the fee passed on');
+  sql(`update public.profiles set upi_id = nullif('${ownerUpi}', '') where user_id = '${OWNER.id}'`);
 
   // Turn the fee back off so later test files start as before.
   sql(`update public.platform_settings set delivery_fee_inr = 0, fee_upi_id = null, fee_upi_business = false, fee_merchant_code = null`);

@@ -314,7 +314,7 @@
         var c = await Dumpy.data.contact(l.id).catch(function () { return null; });
         if (Dumpy.pay) await Dumpy.pay.loadStatus([l]);
         ownerSection.outerHTML = contactCard(c, l, true);
-        if (l.status === "done") { btn.textContent = "Handed over"; btn.disabled = true; return; }
+        if (l.status === "done") { btn.textContent = "Handed over"; btn.disabled = true; mountDelivery(main); return; }
         btn.textContent = "Mark handed over";
         btn.dataset.act = "handed";
         main.querySelector(".contact").insertAdjacentHTML("beforeend",
@@ -435,7 +435,7 @@
     // Stage 7: js/delivery.js fills this with the delivery plan.
     // Once handed over it shows only a finished delivery (and Dumpy's fee, if any).
     var delivery = l.status === "reserved" || l.status === "done"
-      ? '<div data-delivery-for="' + esc(l.id) + '" data-listing-status="' + esc(l.status) + '" data-role="' + (ownerView ? "owner" : "taker") + '" data-other="' + esc(c.display_name) + '"></div>'
+      ? '<div data-delivery-for="' + esc(l.id) + '" data-listing-status="' + esc(l.status) + '" data-price="' + (+l.price_inr || 0) + '"' + (l.paid_at ? ' data-paid="1"' : "") + ' data-role="' + (ownerView ? "owner" : "taker") + '" data-other="' + esc(c.display_name) + '"></div>'
       : "";
     return '<section class="section stack-sm contact" aria-labelledby="' + hid + '"><h2 id="' + hid + '">' + title + "</h2>" +
       '<div class="person"><span class="avatar" aria-hidden="true">' + initial(c.display_name) + "</span>" +

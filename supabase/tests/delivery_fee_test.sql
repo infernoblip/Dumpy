@@ -10,6 +10,8 @@
 --     a fee cannot book another helper until they pay
 --   * platform admins see the ledger and confirm, reset or waive fees
 --   * nobody changes fee columns with a plain update
+--   * for a paid item not paid for yet, the seller pays the fee (collected
+--     from the taker with the price)
 --
 -- How to run: like delivery_test.sql (SQL Editor, or psql). Everything runs in
 -- one transaction that is rolled back, so it is safe on the real project. The
@@ -295,6 +297,64 @@ select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0005');
 select public.platform_set_fee_settings(25, 'Q123456@ybl', 'Dumpy', false, '5399');
 select dumpy_ftests.ok((select fee_upi_business::text || coalesce(fee_merchant_code, '-') from public.platform_fee_settings()) = 'false-',
   'Turning business off clears the merchant code');
+
+-- ------------------------------------- one payment for a paid item (20261107090000)
+-- A paid item not paid for yet: the taker pays the seller price + fee in one
+-- payment, so the seller owes Dumpy the fee. An item already paid for keeps
+-- the old way: the taker pays the fee.
+reset role;
+insert into public.listings (id, society_id, owner_id, title, price_inr)
+select id::uuid, '7e570000-0000-4000-8000-0000000f50c1', '7e570000-0000-4000-8000-0000000f0001', title, 250
+from (values ('7e570000-0000-4000-8000-0000000f1005', 'Test table'),
+             ('7e570000-0000-4000-8000-0000000f1006', 'Test shelf'),
+             ('7e570000-0000-4000-8000-0000000f1007', 'Test stool')) t(id, title);
+insert into public.requests (id, listing_id, society_id, requester_id)
+select ('7e570000-0000-4000-8000-0000000f200' || n)::uuid, ('7e570000-0000-4000-8000-0000000f100' || n)::uuid,
+       '7e570000-0000-4000-8000-0000000f50c1', '7e570000-0000-4000-8000-0000000f0002'
+from generate_series(5, 7) n;
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0001');
+select public.accept_request(('7e570000-0000-4000-8000-0000000f200' || n)::uuid) from generate_series(5, 7) n;
+select public.set_paid('7e570000-0000-4000-8000-0000000f1006', true);
+
+-- The taker still owes the lamp's fee, but the table's fee is the seller's, so booking works.
+insert into dumpy_ftests.ids
+select 'p1', public.arrange_delivery('7e570000-0000-4000-8000-0000000f1005', 'helper', dumpy_ftests.slot(1, 12), '');
+select dumpy_ftests.ok((select fee_inr || ' ' || fee_via_seller::text || ' ' || fee_i_pay::text
+                        from public.get_delivery('7e570000-0000-4000-8000-0000000f1005')) = '25 true true',
+  'A paid item not paid for yet: the seller pays the fee, collected with the price');
+select dumpy_ftests.ok((select fee_payer_id from public.deliveries where id = (select id from dumpy_ftests.ids where name = 'p1'))
+                       = '7e570000-0000-4000-8000-0000000f0001', 'The seller is recorded as the fee payer');
+select dumpy_ftests.refused($$
+  select public.arrange_delivery('7e570000-0000-4000-8000-0000000f1006', 'helper', dumpy_ftests.slot(1, 12), '')
+$$, 'An item already paid for: the taker pays the fee, and still owes the lamp''s fee, so no helper', '55000');
+
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0002');
+select dumpy_ftests.ok((select fee_via_seller::text || ' ' || fee_i_pay::text || ' ' || coalesce(fee_upi_id, '-')
+                        from public.get_delivery('7e570000-0000-4000-8000-0000000f1005')) = 'true false -',
+  'The taker sees the fee goes through the seller, and gets no Dumpy UPI ID');
+select public.arrange_delivery('7e570000-0000-4000-8000-0000000f1005', 'helper', dumpy_ftests.slot(1, 14), 'Rs 20');
+select dumpy_ftests.ok((select fee_payer_id from public.deliveries where id = (select id from dumpy_ftests.ids where name = 'p1'))
+                       = '7e570000-0000-4000-8000-0000000f0001', 'Changing the slot keeps the seller as the fee payer');
+
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0003');
+select public.claim_delivery((select id from dumpy_ftests.ids where name = 'p1'));
+select public.mark_delivered((select id from dumpy_ftests.ids where name = 'p1'));
+
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0002');
+select dumpy_ftests.refused($$ select public.mark_delivery_fee_paid((select id from dumpy_ftests.ids where name = 'p1')) $$,
+  'The taker cannot mark the seller''s fee paid');
+
+select dumpy_ftests.act_as('7e570000-0000-4000-8000-0000000f0001');
+select dumpy_ftests.ok((select fee_status || ' ' || fee_upi_id from public.get_delivery('7e570000-0000-4000-8000-0000000f1005')) = 'due Q123456@ybl',
+  'After delivery the seller owes the fee and gets Dumpy''s UPI ID');
+select dumpy_ftests.refused($$
+  select public.arrange_delivery('7e570000-0000-4000-8000-0000000f1007', 'helper', dumpy_ftests.slot(1, 12), '')
+$$, 'While the seller owes a fee, no new helper booking on their paid items', '55000');
+select public.mark_delivery_fee_paid((select id from dumpy_ftests.ids where name = 'p1'));
+select dumpy_ftests.ok((select fee_status from public.get_delivery('7e570000-0000-4000-8000-0000000f1005')) = 'marked',
+  'The seller marks the fee passed on');
+select dumpy_ftests.ok(public.arrange_delivery('7e570000-0000-4000-8000-0000000f1007', 'helper', dumpy_ftests.slot(1, 12), '') is not null,
+  'Then a helper can be booked again');
 
 select dumpy_ftests.act_as(null);
 select dumpy_ftests.refused($$ select public.delivery_fee() $$, 'Signed-out visitors cannot call the fee functions');
